@@ -1,17 +1,25 @@
 import type { LifePeriod } from "./types";
 
-export const PALETTE = [
-  "bg-rose-400",
-  "bg-amber-400",
-  "bg-emerald-400",
-  "bg-sky-400",
-  "bg-violet-400",
-  "bg-pink-400",
-  "bg-lime-400",
-  "bg-cyan-400",
-  "bg-orange-400",
-  "bg-indigo-400",
+// Tailwind requires literal class strings — do not construct dynamically.
+const COLOR_PAIRS: [bg: string, text: string][] = [
+  ["bg-rose-400", "text-rose-400"],
+  ["bg-amber-400", "text-amber-400"],
+  ["bg-emerald-400", "text-emerald-400"],
+  ["bg-sky-400", "text-sky-400"],
+  ["bg-violet-400", "text-violet-400"],
+  ["bg-pink-400", "text-pink-400"],
+  ["bg-lime-400", "text-lime-400"],
+  ["bg-cyan-400", "text-cyan-400"],
+  ["bg-orange-400", "text-orange-400"],
+  ["bg-indigo-400", "text-indigo-400"],
 ];
+
+export const PALETTE = COLOR_PAIRS.map(([bg]) => bg);
+
+export const BG_TO_TEXT: Record<string, string> = Object.fromEntries([
+  ...COLOR_PAIRS,
+  ["bg-gray-200", "text-gray-200"],
+]);
 
 export function assignColors(periods: LifePeriod[]): Map<LifePeriod, string> {
   const sorted = [...periods].sort(

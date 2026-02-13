@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { lifeConfig } from "./config";
 import { loadConfig, saveConfig, exportConfigFile, importConfigFile } from "./storage";
 import { assignColors } from "./colors";
@@ -13,17 +13,12 @@ function App() {
   const [totalYears, setTotalYears] = useState(initialConfig.totalYears);
   const [periods, setPeriods] = useState<LifePeriod[]>(initialConfig.periods);
 
-  const configRef = useRef({ birthdate, totalYears, periods });
-  useEffect(() => {
-    configRef.current = { birthdate, totalYears, periods };
-  }, [birthdate, totalYears, periods]);
-
   const birthdateObj = useMemo(() => new Date(birthdate), [birthdate]);
   const colorMap = useMemo(() => assignColors(periods), [periods]);
 
   const requestSave = useCallback(() => {
-    setTimeout(() => saveConfig(configRef.current), 0);
-  }, []);
+    saveConfig({ birthdate, totalYears, periods });
+  }, [birthdate, totalYears, periods]);
 
   const handleExport = () => {
     exportConfigFile({ birthdate, totalYears, periods });
