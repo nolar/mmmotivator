@@ -50,9 +50,6 @@ function App() {
 
   return (
     <div className="min-h-screen bg-white p-8">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">
-        Life in Weeks
-      </h1>
       <div className="flex gap-8">
         <aside className="w-80 shrink-0">
           <ConfigForm

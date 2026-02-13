@@ -77,6 +77,13 @@ export default function WeekGrid({
   return (
     <div className="overflow-x-auto">
       <div className="inline-grid gap-px" style={{ gridTemplateColumns: `max-content auto repeat(52, 1fr)` }}>
+        {/* Title row */}
+        <div className="col-span-2" />
+        <div className="col-span-52 flex justify-between items-baseline mb-1" style={{ fontFamily: "Verdana" }}>
+          <span className="text-lg font-bold text-gray-800">Memento mori</span>
+          <span className="text-xs font-bold text-gray-400">(efficient life planning motivator)</span>
+        </div>
+
         {/* Header row */}
         <div />
         <div className="w-8" />
@@ -85,7 +92,7 @@ export default function WeekGrid({
             key={`h-${i}`}
             className="text-[6px] text-gray-400 text-center w-2.5"
           >
-            {i % 4 === 0 ? i : ""}
+            {(i + 1) % 5 === 0 ? i + 1 : ""}
           </div>
         ))}
 
@@ -108,7 +115,7 @@ export default function WeekGrid({
                 key={`year-${year}`}
                 className="text-[8px] text-gray-500 pr-1 text-right leading-[10px] w-8"
               >
-                {year}
+                {year % 5 === 0 ? year : ""}
               </div>
               {cells.map(({ period, date }, w) => {
                 const bgClass = period ? colorMap.get(period) ?? "bg-gray-200" : "bg-gray-200";
