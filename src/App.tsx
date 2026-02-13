@@ -4,7 +4,6 @@ import { loadConfig, saveConfig, exportConfigFile, importConfigFile } from "./st
 import { assignColors } from "./colors";
 import type { LifePeriod } from "./types";
 import WeekGrid from "./components/WeekGrid";
-import Legend from "./components/Legend";
 import ConfigForm from "./components/ConfigForm";
 
 const initialConfig = loadConfig() ?? lifeConfig;
@@ -76,7 +75,6 @@ function App() {
             periods={periods}
             colorMap={colorMap}
           />
-          <Legend periods={periods} colorMap={colorMap} />
         </main>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import type { LifePeriod } from "./types";
 
-const PALETTE = [
+export const PALETTE = [
   "bg-rose-400",
   "bg-amber-400",
   "bg-emerald-400",
@@ -23,14 +23,19 @@ export function assignColors(periods: LifePeriod[]): Map<LifePeriod, string> {
   let colorIndex = 0;
 
   for (const period of sorted) {
-    let color = PALETTE[colorIndex % PALETTE.length];
-    if (color === lastColor) {
+    if (period.color) {
+      map.set(period, period.color);
+      lastColor = period.color;
+    } else {
+      let color = PALETTE[colorIndex % PALETTE.length];
+      if (color === lastColor) {
+        colorIndex++;
+        color = PALETTE[colorIndex % PALETTE.length];
+      }
+      map.set(period, color);
+      lastColor = color;
       colorIndex++;
-      color = PALETTE[colorIndex % PALETTE.length];
     }
-    map.set(period, color);
-    lastColor = color;
-    colorIndex++;
   }
 
   return map;

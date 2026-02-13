@@ -1,5 +1,10 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import type { LifePeriod } from "../types";
+import { PALETTE } from "../colors";
+
+const COLOR_LABELS: Record<string, string> = Object.fromEntries(
+  PALETTE.map((c) => [c, c.replace("bg-", "").replace("-400", "")])
+);
 
 interface ConfigFormProps {
   birthdate: string;
@@ -27,11 +32,18 @@ export default function ConfigForm({
   onReset,
 }: ConfigFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [openColorPicker, setOpenColorPicker] = useState<number | null>(null);
 
   const updatePeriod = (index: number, field: keyof LifePeriod, value: string) => {
-    const updated = periods.map((p, i) =>
-      i === index ? { ...p, [field]: value } : p
-    );
+    const updated = periods.map((p, i) => {
+      if (i !== index) return p;
+      if (field === "color" && !value) {
+        const copy = { ...p };
+        delete copy.color;
+        return copy;
+      }
+      return { ...p, [field]: value };
+    });
     setPeriods(updated);
   };
 
@@ -89,6 +101,42 @@ export default function ConfigForm({
         {periods.map((period, i) => (
           <div key={i} className="rounded border border-gray-200 bg-gray-50 p-2 space-y-1">
             <div className="flex items-center gap-2">
+              <div className="relative">
+                <button
+                  onClick={() => setOpenColorPicker(openColorPicker === i ? null : i)}
+                  className={`w-6 h-6 rounded-full shrink-0 border border-gray-300 ${period.color ?? "bg-gray-200"}`}
+                  title={period.color ? COLOR_LABELS[period.color] ?? period.color : "Auto"}
+                />
+                {openColorPicker === i && (
+                  <div className="absolute z-10 mt-1 rounded border border-gray-200 bg-white p-1.5 shadow-lg grid grid-cols-4 gap-1 w-max">
+                    <button
+                      onClick={() => {
+                        updatePeriod(i, "color", "");
+                        onSave();
+                        setOpenColorPicker(null);
+                      }}
+                      className={`w-5 h-5 rounded-full bg-gray-200 border-2 ${
+                        !period.color ? "border-gray-800" : "border-transparent hover:border-gray-400"
+                      }`}
+                      title="Auto"
+                    />
+                    {PALETTE.map((c) => (
+                      <button
+                        key={c}
+                        onClick={() => {
+                          updatePeriod(i, "color", c);
+                          onSave();
+                          setOpenColorPicker(null);
+                        }}
+                        className={`w-5 h-5 rounded-full ${c} border-2 ${
+                          period.color === c ? "border-gray-800" : "border-transparent hover:border-gray-400"
+                        }`}
+                        title={COLOR_LABELS[c]}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
               <input
                 type="text"
                 placeholder="Label"

@@ -16,7 +16,12 @@ export function loadConfig(): LifeConfig | null {
     return {
       birthdate: data.birthdate,
       totalYears: data.totalYears,
-      periods: data.periods,
+      periods: data.periods.map((p: { label: string; start: string; end: string; color?: string }) => ({
+        label: p.label,
+        start: p.start,
+        end: p.end,
+        ...(p.color ? { color: p.color } : {}),
+      })),
     };
   } catch {
     return null;
@@ -49,7 +54,12 @@ export async function importConfigFile(file: File): Promise<LifeConfig> {
   return {
     birthdate: data.birthdate,
     totalYears: data.totalYears,
-    periods: data.periods,
+    periods: data.periods.map((p: { label: string; start: string; end: string; color?: string }) => ({
+      label: p.label,
+      start: p.start,
+      end: p.end,
+      ...(p.color ? { color: p.color } : {}),
+    })),
   };
 }
 
@@ -64,6 +74,7 @@ function validateConfig(data: unknown): data is StoredConfig {
     if (typeof p.label !== "string") return false;
     if (typeof p.start !== "string") return false;
     if (typeof p.end !== "string") return false;
+    if (p.color !== undefined && typeof p.color !== "string") return false;
   }
   return true;
 }
