@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import type { LifePeriod } from "../types";
 
 interface ConfigFormProps {
@@ -7,6 +8,10 @@ interface ConfigFormProps {
   setTotalYears: (v: number) => void;
   periods: LifePeriod[];
   setPeriods: (v: LifePeriod[]) => void;
+  onSave: () => void;
+  onExport: () => void;
+  onImport: (file: File) => void;
+  onReset: () => void;
 }
 
 export default function ConfigForm({
@@ -16,7 +21,13 @@ export default function ConfigForm({
   setTotalYears,
   periods,
   setPeriods,
+  onSave,
+  onExport,
+  onImport,
+  onReset,
 }: ConfigFormProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const updatePeriod = (index: number, field: keyof LifePeriod, value: string) => {
     const updated = periods.map((p, i) =>
       i === index ? { ...p, [field]: value } : p
@@ -26,10 +37,20 @@ export default function ConfigForm({
 
   const removePeriod = (index: number) => {
     setPeriods(periods.filter((_, i) => i !== index));
+    onSave();
   };
 
   const addPeriod = () => {
     setPeriods([...periods, { label: "", start: "", end: "" }]);
+    onSave();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onImport(file);
+      e.target.value = "";
+    }
   };
 
   return (
@@ -43,6 +64,7 @@ export default function ConfigForm({
             type="date"
             value={birthdate}
             onChange={(e) => setBirthdate(e.target.value)}
+            onBlur={onSave}
             className="mt-1 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
           />
         </label>
@@ -55,6 +77,7 @@ export default function ConfigForm({
             max={150}
             value={totalYears}
             onChange={(e) => setTotalYears(Number(e.target.value))}
+            onBlur={onSave}
             className="mt-1 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
           />
         </label>
@@ -71,6 +94,7 @@ export default function ConfigForm({
                 placeholder="Label"
                 value={period.label}
                 onChange={(e) => updatePeriod(i, "label", e.target.value)}
+                onBlur={onSave}
                 className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
               />
               <button
@@ -86,12 +110,14 @@ export default function ConfigForm({
                 type="date"
                 value={period.start}
                 onChange={(e) => updatePeriod(i, "start", e.target.value)}
+                onBlur={onSave}
                 className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
               />
               <input
                 type="date"
                 value={period.end}
                 onChange={(e) => updatePeriod(i, "end", e.target.value)}
+                onBlur={onSave}
                 className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
               />
             </div>
@@ -104,6 +130,36 @@ export default function ConfigForm({
         >
           + Add period
         </button>
+      </div>
+
+      <div className="space-y-2 border-t border-gray-200 pt-4">
+        <div className="flex gap-2">
+          <button
+            onClick={onExport}
+            className="flex-1 rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
+          >
+            Export
+          </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex-1 rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
+          >
+            Import
+          </button>
+        </div>
+        <button
+          onClick={onReset}
+          className="w-full rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
+        >
+          Reset to defaults
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json"
+          onChange={handleFileChange}
+          className="hidden"
+        />
       </div>
     </div>
   );
