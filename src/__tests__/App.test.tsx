@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi, type Mock } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import { toPng } from "html-to-image";
 import App from "../App";
 
@@ -9,7 +10,7 @@ vi.mock("html-to-image", () => ({
 
 describe("App", () => {
   it("renders the Download PNG button", () => {
-    render(<App />);
+    render(<MemoryRouter><App /></MemoryRouter>);
     expect(screen.getByRole("button", { name: "Download PNG" })).toBeInTheDocument();
   });
 
@@ -27,7 +28,7 @@ describe("App", () => {
       return el;
     } as typeof origCreateElement;
 
-    render(<App />);
+    render(<MemoryRouter><App /></MemoryRouter>);
     const button = screen.getByRole("button", { name: "Download PNG" });
     fireEvent.click(button);
 
@@ -44,7 +45,7 @@ describe("App", () => {
   });
 
   it("applies print:hidden to sidebars and action buttons", () => {
-    const { container } = render(<App />);
+    const { container } = render(<MemoryRouter><App /></MemoryRouter>);
 
     // Both aside elements (config form + date form) should have print:hidden
     const asides = container.querySelectorAll("aside");
@@ -58,7 +59,7 @@ describe("App", () => {
   });
 
   it("applies print layout classes to root containers", () => {
-    const { container } = render(<App />);
+    const { container } = render(<MemoryRouter><App /></MemoryRouter>);
     const root = container.firstElementChild!;
     expect(root.className).toContain("print:p-0");
     expect(root.className).toContain("print:min-w-0");

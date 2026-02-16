@@ -7,6 +7,7 @@ import type { DateMarker, LifePeriod } from "./types";
 import WeekGrid from "./components/WeekGrid";
 import ConfigForm from "./components/ConfigForm";
 import DateForm from "./components/DateForm";
+import SiteFooter from "./components/SiteFooter";
 
 const initialConfig = loadConfig() ?? lifeConfig;
 
@@ -60,7 +61,7 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-white p-8 flex justify-center min-w-[1400px] print:p-0 print:min-w-0">
+    <div className="min-h-screen bg-white p-8 flex flex-col items-center min-w-[1400px] print:p-0 print:min-w-0">
       <div className="flex gap-8 shrink-0 print:block print:w-full">
         <aside className="w-80 shrink-0 print:hidden">
           <ConfigForm
@@ -130,6 +131,7 @@ function App() {
           />
         </aside>
       </div>
+      <SiteFooter />
     </div>
   );
 }
