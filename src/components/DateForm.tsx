@@ -43,7 +43,22 @@ export default function DateForm({ dates, setDates, totalYears, setTotalYears, o
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-gray-600">Dates</h3>
+        <label className="block">
+          <span className="text-sm font-semibold text-gray-600">Total years</span>
+          <input
+            type="number"
+            min={1}
+            max={150}
+            value={totalYears}
+            onChange={(e) => setTotalYears(Number(e.target.value))}
+            onBlur={onSave}
+            className="mt-1 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
+          />
+        </label>
+      </div>
+
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold text-gray-600">Milestones</h3>
         {dates.map((d, i) => (
           <div key={i} className="rounded border border-gray-200 bg-gray-50 p-2 space-y-1">
             <div className="flex items-center gap-2">
@@ -115,21 +130,6 @@ export default function DateForm({ dates, setDates, totalYears, setTotalYears, o
         >
           + Add date
         </button>
-      </div>
-
-      <div className="space-y-3">
-        <label className="block">
-          <span className="text-sm font-semibold text-gray-600">Total years</span>
-          <input
-            type="number"
-            min={1}
-            max={150}
-            value={totalYears}
-            onChange={(e) => setTotalYears(Number(e.target.value))}
-            onBlur={onSave}
-            className="mt-1 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
-          />
-        </label>
       </div>
     </div>
   );
