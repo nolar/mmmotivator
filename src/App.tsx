@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
+import { toPng } from "html-to-image";
 import { lifeConfig } from "./config";
 import { loadConfig, saveConfig, exportConfigFile, importConfigFile } from "./storage";
 import { assignColors } from "./colors";
@@ -16,6 +17,7 @@ function App() {
   const [dates, setDates] = useState<DateMarker[]>(initialConfig.dates ?? []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   const birthdateObj = useMemo(() => new Date(birthdate), [birthdate]);
   const colorMap = useMemo(() => assignColors(periods), [periods]);
 
@@ -40,6 +42,15 @@ function App() {
     }
   };
 
+  const handleDownloadPng = async () => {
+    if (!gridRef.current) return;
+    const dataUrl = await toPng(gridRef.current, { backgroundColor: "#ffffff", skipFonts: true });
+    const link = document.createElement("a");
+    link.download = "life-in-weeks.png";
+    link.href = dataUrl;
+    link.click();
+  };
+
   const handleReset = () => {
     setBirthdate(lifeConfig.birthdate);
     setTotalYears(lifeConfig.totalYears);
@@ -62,6 +73,7 @@ function App() {
         </aside>
         <main className="shrink-0">
           <WeekGrid
+            ref={gridRef}
             birthdate={birthdateObj}
             totalYears={totalYears}
             periods={periods}
@@ -69,6 +81,12 @@ function App() {
             dates={dates}
           />
           <div className="flex gap-2 mt-4 justify-center">
+            <button
+              onClick={handleDownloadPng}
+              className="rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
+            >
+              Download PNG
+            </button>
             <button
               onClick={handleExport}
               className="rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"

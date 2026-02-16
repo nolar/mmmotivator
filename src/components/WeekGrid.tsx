@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { forwardRef, useMemo } from "react";
 import type { DateMarker, LifePeriod } from "../types";
 import { buildGridRows, buildLabelRows, getDateMarkerRow, getDateMarkerCell } from "../grid";
 import { BG_TO_TEXT, BG_TO_BORDER } from "../colors";
@@ -11,13 +11,13 @@ interface WeekGridProps {
   dates: DateMarker[];
 }
 
-export default function WeekGrid({
+const WeekGrid = forwardRef<HTMLDivElement, WeekGridProps>(function WeekGrid({
   birthdate,
   totalYears,
   periods,
   colorMap,
   dates,
-}: WeekGridProps) {
+}, ref) {
   const rows = useMemo(
     () => buildGridRows(birthdate, totalYears, periods),
     [birthdate, totalYears, periods]
@@ -53,7 +53,7 @@ export default function WeekGrid({
   }, [dates, birthdate, totalYears]);
 
   return (
-    <div className="overflow-x-auto">
+    <div ref={ref} className="overflow-x-auto">
       <div className="inline-grid gap-px" style={{ gridTemplateColumns: `max-content auto repeat(52, 1fr) 10ch` }}>
         {/* Title row */}
         <div className="col-span-2" />
@@ -143,4 +143,6 @@ export default function WeekGrid({
       </div>
     </div>
   );
-}
+});
+
+export default WeekGrid;
