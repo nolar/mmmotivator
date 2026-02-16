@@ -53,7 +53,7 @@ const WeekGrid = forwardRef<HTMLDivElement, WeekGridProps>(function WeekGrid({
   }, [dates, birthdate, totalYears]);
 
   return (
-    <div ref={ref} className="overflow-x-auto">
+    <div ref={ref} className="overflow-x-auto pt-4 pb-4">
       <div className="inline-grid gap-px" style={{ gridTemplateColumns: `5ch 1ch repeat(52, 1fr) 5ch` }}>
         {/* Title row */}
         <div className="col-span-2" />
@@ -140,6 +140,13 @@ const WeekGrid = forwardRef<HTMLDivElement, WeekGridProps>(function WeekGrid({
             </>
           );
         })}
+
+        {/* Footer */}
+        <div className="col-span-2" />
+        <div className="col-span-52 text-right">
+          <span className="text-[10px] text-black" style={{ fontFamily: "Verdana" }}>Generated with <a href="https://mmmotivator.com" className="text-black underline">mmmotivator.com</a></span>
+        </div>
+        <div />
       </div>
     </div>
   );

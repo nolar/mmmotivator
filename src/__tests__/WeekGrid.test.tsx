@@ -119,6 +119,22 @@ describe("WeekGrid", () => {
     expect(yearCells.length).toBeGreaterThan(0);
   });
 
+  it("renders the footer with a link to mmmotivator.com", () => {
+    render(
+      <WeekGrid
+        birthdate={birthdate}
+        totalYears={2}
+        periods={periods}
+        colorMap={colorMap}
+        dates={[]}
+      />
+    );
+    const link = screen.getByRole("link", { name: "mmmotivator.com" });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute("href", "https://mmmotivator.com");
+    expect(link).toHaveClass("text-black", "underline");
+  });
+
   it("does not render stars when dates array is empty", () => {
     const { container } = render(
       <WeekGrid
