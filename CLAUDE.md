@@ -10,7 +10,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Type-check only:** `npx tsc --noEmit`
 - **Unit/component tests:** `npx vitest run` (Vitest with jsdom + React Testing Library)
 - **Visual regression tests:** `npx playwright test` (requires `npm run build` first; uses Playwright with Chromium)
-- **Update Playwright baselines:** `npx playwright test --update-snapshots` (baselines are platform-specific, e.g. `full-page-darwin.png` / `full-page-linux.png`)
+- **Update Playwright baselines (macOS):** `npx playwright test --update-snapshots` (baselines are platform-specific, e.g. `full-page-darwin.png` / `full-page-linux.png`)
+- **Update Playwright baselines (Linux via Docker):** `npm run test:e2e:update-linux` — runs Playwright inside the official Docker image with an isolated `node_modules` volume so the host's dependencies are not overwritten
 
 ## CI
 
