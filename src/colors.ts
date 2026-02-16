@@ -21,6 +21,24 @@ export const BG_TO_TEXT: Record<string, string> = Object.fromEntries([
   ["bg-gray-200", "text-gray-200"],
 ]);
 
+const BORDER_PAIRS: [bg: string, border: string][] = [
+  ["bg-rose-400", "border-rose-400"],
+  ["bg-amber-400", "border-amber-400"],
+  ["bg-emerald-400", "border-emerald-400"],
+  ["bg-sky-400", "border-sky-400"],
+  ["bg-violet-400", "border-violet-400"],
+  ["bg-pink-400", "border-pink-400"],
+  ["bg-lime-400", "border-lime-400"],
+  ["bg-cyan-400", "border-cyan-400"],
+  ["bg-orange-400", "border-orange-400"],
+  ["bg-indigo-400", "border-indigo-400"],
+];
+
+export const BG_TO_BORDER: Record<string, string> = Object.fromEntries([
+  ...BORDER_PAIRS,
+  ["bg-gray-400", "border-gray-400"],
+]);
+
 export function assignColors(periods: LifePeriod[]): Map<LifePeriod, string> {
   const sorted = [...periods].sort(
     (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import type { LifePeriod } from "../types";
 import { PALETTE } from "../colors";
 
@@ -9,29 +9,18 @@ const COLOR_LABELS: Record<string, string> = Object.fromEntries(
 interface ConfigFormProps {
   birthdate: string;
   setBirthdate: (v: string) => void;
-  totalYears: number;
-  setTotalYears: (v: number) => void;
   periods: LifePeriod[];
   setPeriods: (v: LifePeriod[]) => void;
   onSave: () => void;
-  onExport: () => void;
-  onImport: (file: File) => void;
-  onReset: () => void;
 }
 
 export default function ConfigForm({
   birthdate,
   setBirthdate,
-  totalYears,
-  setTotalYears,
   periods,
   setPeriods,
   onSave,
-  onExport,
-  onImport,
-  onReset,
 }: ConfigFormProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [openColorPicker, setOpenColorPicker] = useState<number | null>(null);
 
   const updatePeriod = (index: number, field: keyof LifePeriod, value: string) => {
@@ -57,38 +46,15 @@ export default function ConfigForm({
     onSave();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onImport(file);
-      e.target.value = "";
-    }
-  };
-
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-semibold text-gray-700">Configuration</h2>
-
       <div className="space-y-3">
         <label className="block">
-          <span className="text-sm font-medium text-gray-600">Birthdate</span>
+          <span className="text-sm font-semibold text-gray-600">Birthdate</span>
           <input
             type="date"
             value={birthdate}
             onChange={(e) => setBirthdate(e.target.value)}
-            onBlur={onSave}
-            className="mt-1 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
-          />
-        </label>
-
-        <label className="block">
-          <span className="text-sm font-medium text-gray-600">Total years</span>
-          <input
-            type="number"
-            min={1}
-            max={150}
-            value={totalYears}
-            onChange={(e) => setTotalYears(Number(e.target.value))}
             onBlur={onSave}
             className="mt-1 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
           />
@@ -178,36 +144,6 @@ export default function ConfigForm({
         >
           + Add period
         </button>
-      </div>
-
-      <div className="space-y-2 border-t border-gray-200 pt-4">
-        <div className="flex gap-2">
-          <button
-            onClick={onExport}
-            className="flex-1 rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
-          >
-            Export
-          </button>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex-1 rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
-          >
-            Import
-          </button>
-        </div>
-        <button
-          onClick={onReset}
-          className="w-full rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
-        >
-          Reset to defaults
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".json"
-          onChange={handleFileChange}
-          className="hidden"
-        />
       </div>
     </div>
   );

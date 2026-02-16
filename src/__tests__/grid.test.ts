@@ -1,4 +1,4 @@
-import { getCellDate, findPeriod, buildGridRows } from "../grid";
+import { getCellDate, findPeriod, buildGridRows, getDateMarkerRow, getDateMarkerCell } from "../grid";
 import type { LifePeriod } from "../types";
 
 describe("getCellDate", () => {
@@ -97,5 +97,52 @@ describe("buildGridRows", () => {
     // First cell should be childhood (birthdate is within the period)
     expect(rows[0].cells[0].period).not.toBeNull();
     expect(rows[0].cells[0].period!.label).toBe("Childhood");
+  });
+});
+
+describe("getDateMarkerRow", () => {
+  const birthdate = new Date("1990-06-15");
+
+  it("returns 0 for the birthdate itself", () => {
+    expect(getDateMarkerRow(birthdate, "1990-06-15")).toBe(0);
+  });
+
+  it("returns 1 for a date roughly one year later", () => {
+    expect(getDateMarkerRow(birthdate, "1991-07-01")).toBe(1);
+  });
+
+  it("returns 10 for a date 10 years later", () => {
+    expect(getDateMarkerRow(birthdate, "2000-06-15")).toBe(10);
+  });
+
+  it("returns negative for a date before birth", () => {
+    expect(getDateMarkerRow(birthdate, "1989-01-01")).toBeLessThan(0);
+  });
+});
+
+describe("getDateMarkerCell", () => {
+  const birthdate = new Date("1990-06-15");
+
+  it("returns row 0, week 0 for the birthdate", () => {
+    const { row, week } = getDateMarkerCell(birthdate, "1990-06-15");
+    expect(row).toBe(0);
+    expect(week).toBe(0);
+  });
+
+  it("returns correct week for a date a few weeks after birth", () => {
+    const { row, week } = getDateMarkerCell(birthdate, "1990-07-06");
+    expect(row).toBe(0);
+    expect(week).toBe(3);
+  });
+
+  it("returns row 1 for a date one year later", () => {
+    const { row } = getDateMarkerCell(birthdate, "1991-07-01");
+    expect(row).toBe(1);
+  });
+
+  it("clamps week to 51 maximum", () => {
+    // A date near end of year-row should not exceed week 51
+    const { week } = getDateMarkerCell(birthdate, "1991-06-14");
+    expect(week).toBeLessThanOrEqual(51);
   });
 });

@@ -12,4 +12,7 @@ export const lifeConfig: LifeConfig = {
     { label: "Big Tech", start: "2021-01-01", end: "2025-12-31" },
     { label: "Freelance", start: "2026-01-01", end: "2030-06-14" },
   ],
+  dates: [
+    { date: "1990-06-15", title: "Born" },
+  ],
 };

@@ -19,6 +19,7 @@ describe("WeekGrid", () => {
         totalYears={3}
         periods={periods}
         colorMap={colorMap}
+        dates={[]}
       />
     );
     expect(screen.getByText("Memento mori")).toBeInTheDocument();
@@ -31,6 +32,7 @@ describe("WeekGrid", () => {
         totalYears={2}
         periods={periods}
         colorMap={colorMap}
+        dates={[]}
       />
     );
     // Each row has 52 cells + 1 label div + 1 year div = 54 children per data row,
@@ -49,10 +51,52 @@ describe("WeekGrid", () => {
         totalYears={totalYears}
         periods={periods}
         colorMap={colorMap}
+        dates={[]}
       />
     );
     // Each cell has w-2.5 h-2.5 classes
     const cells = container.querySelectorAll(".w-2\\.5.h-2\\.5");
     expect(cells).toHaveLength(totalYears * 52);
+  });
+
+  it("renders a star SVG in the cell matching a date marker", () => {
+    const { container } = render(
+      <WeekGrid
+        birthdate={birthdate}
+        totalYears={3}
+        periods={periods}
+        colorMap={colorMap}
+        dates={[{ date: "1990-06-15", title: "Born" }]}
+      />
+    );
+    const stars = container.querySelectorAll("svg");
+    expect(stars.length).toBeGreaterThan(0);
+  });
+
+  it("renders date marker title in the annotation column", () => {
+    render(
+      <WeekGrid
+        birthdate={birthdate}
+        totalYears={3}
+        periods={periods}
+        colorMap={colorMap}
+        dates={[{ date: "1990-06-15", title: "Born" }]}
+      />
+    );
+    expect(screen.getByText("Born")).toBeInTheDocument();
+  });
+
+  it("does not render stars when dates array is empty", () => {
+    const { container } = render(
+      <WeekGrid
+        birthdate={birthdate}
+        totalYears={3}
+        periods={periods}
+        colorMap={colorMap}
+        dates={[]}
+      />
+    );
+    const stars = container.querySelectorAll("svg");
+    expect(stars).toHaveLength(0);
   });
 });

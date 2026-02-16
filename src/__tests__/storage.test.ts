@@ -9,6 +9,9 @@ const validConfig: LifeConfig = {
     { label: "Childhood", start: "1990-06-15", end: "1997-08-31" },
     { label: "School", start: "1997-09-01", end: "2008-06-30" },
   ],
+  dates: [
+    { date: "1990-06-15", title: "Born" },
+  ],
 };
 
 function createMockStorage(): Storage {
@@ -44,6 +47,8 @@ describe("saveConfig / loadConfig round-trip", () => {
     expect(loaded!.totalYears).toBe(validConfig.totalYears);
     expect(loaded!.periods).toHaveLength(validConfig.periods.length);
     expect(loaded!.periods[0].label).toBe("Childhood");
+    expect(loaded!.dates).toHaveLength(1);
+    expect(loaded!.dates[0].title).toBe("Born");
   });
 
   it("preserves optional color field", () => {
@@ -56,6 +61,31 @@ describe("saveConfig / loadConfig round-trip", () => {
     saveConfig(configWithColor);
     const loaded = loadConfig();
     expect(loaded!.periods[0].color).toBe("bg-rose-400");
+  });
+
+  it("preserves optional date marker color", () => {
+    const config: LifeConfig = {
+      ...validConfig,
+      dates: [{ date: "2000-01-01", title: "Event", color: "bg-sky-400" }],
+    };
+    saveConfig(config);
+    const loaded = loadConfig();
+    expect(loaded!.dates[0].color).toBe("bg-sky-400");
+  });
+
+  it("defaults dates to empty array when not in stored data", () => {
+    localStorage.setItem(
+      "life-in-weeks-config",
+      JSON.stringify({
+        version: 1,
+        birthdate: "1990-06-15",
+        totalYears: 90,
+        periods: [],
+      })
+    );
+    const loaded = loadConfig();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.dates).toEqual([]);
   });
 });
 

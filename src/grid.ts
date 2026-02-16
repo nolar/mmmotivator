@@ -44,6 +44,21 @@ export function buildGridRows(
   return result;
 }
 
+export function getDateMarkerRow(birthdate: Date, dateStr: string): number {
+  const marker = new Date(dateStr);
+  const diffMs = marker.getTime() - birthdate.getTime();
+  return Math.floor(diffMs / (365.25 * 24 * 60 * 60 * 1000));
+}
+
+export function getDateMarkerCell(birthdate: Date, dateStr: string): { row: number; week: number } {
+  const marker = new Date(dateStr);
+  const diffDays = (marker.getTime() - birthdate.getTime()) / (24 * 60 * 60 * 1000);
+  const row = Math.floor(diffDays / 365.25);
+  const dayInYear = diffDays - row * 365.25;
+  const week = Math.min(Math.floor(dayInYear / 7), 51);
+  return { row, week };
+}
+
 export function buildLabelRows(
   rows: GridRow[],
   colorMap: Map<LifePeriod, string>,

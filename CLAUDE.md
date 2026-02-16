@@ -12,6 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Visual regression tests:** `npx playwright test` (requires `npm run build` first; uses Playwright with Chromium)
 - **Update Playwright baselines (macOS):** `npx playwright test --update-snapshots` (baselines are platform-specific, e.g. `full-page-darwin.png` / `full-page-linux.png`)
 - **Update Playwright baselines (Linux via Docker):** `npm run test:e2e:update-linux` — runs Playwright inside the official Docker image with an isolated `node_modules` volume so the host's dependencies are not overwritten
+- **IMPORTANT:** When updating Playwright baselines, ALWAYS regenerate BOTH platforms (macOS and Linux). Run `npx playwright test --update-snapshots` AND `npm run test:e2e:update-linux`. CI runs on Linux, so forgetting the Linux baseline will break the pipeline.
 
 ## CI
 

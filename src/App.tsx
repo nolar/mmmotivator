@@ -1,10 +1,11 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { lifeConfig } from "./config";
 import { loadConfig, saveConfig, exportConfigFile, importConfigFile } from "./storage";
 import { assignColors } from "./colors";
-import type { LifePeriod } from "./types";
+import type { DateMarker, LifePeriod } from "./types";
 import WeekGrid from "./components/WeekGrid";
 import ConfigForm from "./components/ConfigForm";
+import DateForm from "./components/DateForm";
 
 const initialConfig = loadConfig() ?? lifeConfig;
 
@@ -12,16 +13,18 @@ function App() {
   const [birthdate, setBirthdate] = useState(initialConfig.birthdate);
   const [totalYears, setTotalYears] = useState(initialConfig.totalYears);
   const [periods, setPeriods] = useState<LifePeriod[]>(initialConfig.periods);
+  const [dates, setDates] = useState<DateMarker[]>(initialConfig.dates ?? []);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const birthdateObj = useMemo(() => new Date(birthdate), [birthdate]);
   const colorMap = useMemo(() => assignColors(periods), [periods]);
 
   const requestSave = useCallback(() => {
-    saveConfig({ birthdate, totalYears, periods });
-  }, [birthdate, totalYears, periods]);
+    saveConfig({ birthdate, totalYears, periods, dates });
+  }, [birthdate, totalYears, periods, dates]);
 
   const handleExport = () => {
-    exportConfigFile({ birthdate, totalYears, periods });
+    exportConfigFile({ birthdate, totalYears, periods, dates });
   };
 
   const handleImport = async (file: File) => {
@@ -30,6 +33,7 @@ function App() {
       setBirthdate(config.birthdate);
       setTotalYears(config.totalYears);
       setPeriods(config.periods);
+      setDates(config.dates ?? []);
       saveConfig(config);
     } catch (e) {
       alert(e instanceof Error ? e.message : "Failed to import configuration");
@@ -40,34 +44,73 @@ function App() {
     setBirthdate(lifeConfig.birthdate);
     setTotalYears(lifeConfig.totalYears);
     setPeriods(lifeConfig.periods);
+    setDates(lifeConfig.dates);
     saveConfig(lifeConfig);
   };
 
   return (
-    <div className="min-h-screen bg-white p-8">
-      <div className="flex gap-8">
+    <div className="min-h-screen bg-white p-8 flex justify-center" style={{ minWidth: "1400px" }}>
+      <div className="flex gap-8 shrink-0">
         <aside className="w-80 shrink-0">
           <ConfigForm
             birthdate={birthdate}
             setBirthdate={setBirthdate}
-            totalYears={totalYears}
-            setTotalYears={setTotalYears}
             periods={periods}
             setPeriods={setPeriods}
             onSave={requestSave}
-            onExport={handleExport}
-            onImport={handleImport}
-            onReset={handleReset}
           />
         </aside>
-        <main className="flex-1 min-w-0">
+        <main className="shrink-0">
           <WeekGrid
             birthdate={birthdateObj}
             totalYears={totalYears}
             periods={periods}
             colorMap={colorMap}
+            dates={dates}
           />
+          <div className="flex gap-2 mt-4 justify-center">
+            <button
+              onClick={handleExport}
+              className="rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
+            >
+              Export
+            </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
+            >
+              Import
+            </button>
+            <button
+              onClick={handleReset}
+              className="rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
+            >
+              Reset to defaults
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  handleImport(file);
+                  e.target.value = "";
+                }
+              }}
+              className="hidden"
+            />
+          </div>
         </main>
+        <aside className="w-64 shrink-0">
+          <DateForm
+            dates={dates}
+            setDates={setDates}
+            totalYears={totalYears}
+            setTotalYears={setTotalYears}
+            onSave={requestSave}
+          />
+        </aside>
       </div>
     </div>
   );

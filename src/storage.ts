@@ -22,6 +22,13 @@ export function loadConfig(): LifeConfig | null {
         end: p.end,
         ...(p.color ? { color: p.color } : {}),
       })),
+      dates: Array.isArray(data.dates)
+        ? data.dates.map((d: { date: string; title: string; color?: string }) => ({
+            date: d.date,
+            title: d.title,
+            ...(d.color ? { color: d.color } : {}),
+          }))
+        : [],
     };
   } catch {
     return null;
@@ -60,6 +67,13 @@ export async function importConfigFile(file: File): Promise<LifeConfig> {
       end: p.end,
       ...(p.color ? { color: p.color } : {}),
     })),
+    dates: Array.isArray(data.dates)
+      ? data.dates.map((d: { date: string; title: string; color?: string }) => ({
+          date: d.date,
+          title: d.title,
+          ...(d.color ? { color: d.color } : {}),
+        }))
+      : [],
   };
 }
 
@@ -75,6 +89,15 @@ function validateConfig(data: unknown): data is StoredConfig {
     if (typeof p.start !== "string") return false;
     if (typeof p.end !== "string") return false;
     if (p.color !== undefined && typeof p.color !== "string") return false;
+  }
+  if (obj.dates !== undefined) {
+    if (!Array.isArray(obj.dates)) return false;
+    for (const d of obj.dates) {
+      if (typeof d !== "object" || d === null) return false;
+      if (typeof d.date !== "string") return false;
+      if (typeof d.title !== "string") return false;
+      if (d.color !== undefined && typeof d.color !== "string") return false;
+    }
   }
   return true;
 }
