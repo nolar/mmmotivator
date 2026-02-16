@@ -58,6 +58,23 @@ describe("App", () => {
     expect(downloadBtn.parentElement!.className).toContain("print:hidden");
   });
 
+  it("renders sponsor links with correct hrefs", () => {
+    render(<MemoryRouter><App /></MemoryRouter>);
+
+    const github = screen.getByRole("link", { name: "Sponsor via GitHub" });
+    expect(github).toHaveAttribute("href", "https://github.com/sponsors/nolar/");
+    expect(github).toHaveAttribute("target", "_blank");
+
+    const paypal = screen.getByRole("link", { name: "Sponsor via PayPal" });
+    expect(paypal).toHaveAttribute("href", "https://paypal.me/nolarinfo");
+    expect(paypal).toHaveAttribute("target", "_blank");
+  });
+
+  it("renders sponsor intro text", () => {
+    render(<MemoryRouter><App /></MemoryRouter>);
+    expect(screen.getByText(/support the author with bread & beer/)).toBeInTheDocument();
+  });
+
   it("applies print layout classes to root containers", () => {
     const { container } = render(<MemoryRouter><App /></MemoryRouter>);
     const root = container.firstElementChild!;

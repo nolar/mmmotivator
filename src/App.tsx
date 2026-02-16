@@ -120,6 +120,27 @@ function App() {
               className="hidden"
             />
           </div>
+          <div className="mt-3 text-center print:hidden">
+            <p className="text-sm text-gray-500 mb-2">If you like the app, please support the author with bread &amp; beer:</p>
+            <div className="flex gap-2 justify-center">
+              <a
+                href="https://github.com/sponsors/nolar/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
+              >
+                Sponsor via GitHub
+              </a>
+              <a
+                href="https://paypal.me/nolarinfo"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
+              >
+                Sponsor via PayPal
+              </a>
+            </div>
+          </div>
         </main>
         <aside className="w-64 shrink-0 print:hidden">
           <DateForm
