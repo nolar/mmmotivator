@@ -54,7 +54,7 @@ const WeekGrid = forwardRef<HTMLDivElement, WeekGridProps>(function WeekGrid({
 
   return (
     <div ref={ref} className="overflow-x-auto">
-      <div className="inline-grid gap-px" style={{ gridTemplateColumns: `max-content auto repeat(52, 1fr) 10ch` }}>
+      <div className="inline-grid gap-px" style={{ gridTemplateColumns: `5ch 1ch repeat(52, 1fr) 5ch` }}>
         {/* Title row */}
         <div className="col-span-2" />
         <div className="col-span-52 flex justify-between items-baseline mb-1" style={{ fontFamily: "Verdana" }}>
@@ -87,7 +87,7 @@ const WeekGrid = forwardRef<HTMLDivElement, WeekGridProps>(function WeekGrid({
             <>
               <div
                 key={`lbl-${year}`}
-                className="pr-2 flex items-center justify-end"
+                className="pr-0.5 flex items-center justify-end max-w-[5ch] overflow-hidden"
               >
                 {labelInfo && (
                   <span className={`text-[9px] leading-[10px] font-bold whitespace-nowrap ${labelInfo.textClass}`} style={{ fontFamily: "Impact" }}>
@@ -97,7 +97,7 @@ const WeekGrid = forwardRef<HTMLDivElement, WeekGridProps>(function WeekGrid({
               </div>
               <div
                 key={`year-${year}`}
-                className="text-[8px] text-gray-500 pr-1 text-right leading-[10px] w-8"
+                className="text-[8px] text-gray-500 pr-1 text-right leading-[10px] w-[2em]"
               >
                 {year % 5 === 0 ? year : ""}
               </div>
@@ -129,7 +129,7 @@ const WeekGrid = forwardRef<HTMLDivElement, WeekGridProps>(function WeekGrid({
               })}
               <div
                 key={`ann-${year}`}
-                className={`flex items-center justify-end pl-2${marker ? ` border-t-2 ${borderColor}` : ""}`}
+                className={`flex items-center justify-end pl-0.5${marker ? ` border-t-2 ${borderColor}` : ""}`}
               >
                 {marker && (
                   <span className={`text-[9px] leading-[10px] font-bold whitespace-nowrap ${textColor}`} style={{ fontFamily: "Impact" }}>

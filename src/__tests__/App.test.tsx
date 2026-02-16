@@ -35,10 +35,36 @@ describe("App", () => {
       expect(toPng).toHaveBeenCalledWith(expect.any(HTMLElement), {
         backgroundColor: "#ffffff",
         skipFonts: true,
+        pixelRatio: 2,
       });
       expect(clickSpy).toHaveBeenCalled();
     });
 
     Document.prototype.createElement = origCreateElement;
+  });
+
+  it("applies print:hidden to sidebars and action buttons", () => {
+    const { container } = render(<App />);
+
+    // Both aside elements (config form + date form) should have print:hidden
+    const asides = container.querySelectorAll("aside");
+    for (const aside of asides) {
+      expect(aside.className).toContain("print:hidden");
+    }
+
+    // The button bar container should have print:hidden
+    const downloadBtn = screen.getByRole("button", { name: "Download PNG" });
+    expect(downloadBtn.parentElement!.className).toContain("print:hidden");
+  });
+
+  it("applies print layout classes to root containers", () => {
+    const { container } = render(<App />);
+    const root = container.firstElementChild!;
+    expect(root.className).toContain("print:p-0");
+    expect(root.className).toContain("print:min-w-0");
+
+    const main = container.querySelector("main")!;
+    expect(main.className).toContain("print:w-full");
+    expect(main.className).toContain("print:mx-auto");
   });
 });

@@ -86,6 +86,39 @@ describe("WeekGrid", () => {
     expect(screen.getByText("Born")).toBeInTheDocument();
   });
 
+  it("uses compact grid template columns", () => {
+    const { container } = render(
+      <WeekGrid
+        birthdate={birthdate}
+        totalYears={2}
+        periods={periods}
+        colorMap={colorMap}
+        dates={[]}
+      />
+    );
+    const grid = container.querySelector(".inline-grid") as HTMLElement;
+    expect(grid.style.gridTemplateColumns).toBe("5ch 1ch repeat(52, 1fr) 5ch");
+  });
+
+  it("constrains label column width and year column width", () => {
+    const { container } = render(
+      <WeekGrid
+        birthdate={birthdate}
+        totalYears={10}
+        periods={periods}
+        colorMap={colorMap}
+        dates={[]}
+      />
+    );
+    // Label cells should have max-w-[5ch]
+    const labelCells = container.querySelectorAll('[class*="max-w-[5ch]"]');
+    expect(labelCells.length).toBeGreaterThan(0);
+
+    // Year number cells should have w-[2em]
+    const yearCells = container.querySelectorAll('[class*="w-[2em]"]');
+    expect(yearCells.length).toBeGreaterThan(0);
+  });
+
   it("does not render stars when dates array is empty", () => {
     const { container } = render(
       <WeekGrid

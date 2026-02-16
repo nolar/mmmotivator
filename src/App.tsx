@@ -44,7 +44,7 @@ function App() {
 
   const handleDownloadPng = async () => {
     if (!gridRef.current) return;
-    const dataUrl = await toPng(gridRef.current, { backgroundColor: "#ffffff", skipFonts: true });
+    const dataUrl = await toPng(gridRef.current, { backgroundColor: "#ffffff", skipFonts: true, pixelRatio: 2 });
     const link = document.createElement("a");
     link.download = "life-in-weeks.png";
     link.href = dataUrl;
@@ -60,9 +60,9 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-white p-8 flex justify-center" style={{ minWidth: "1400px" }}>
-      <div className="flex gap-8 shrink-0">
-        <aside className="w-80 shrink-0">
+    <div className="min-h-screen bg-white p-8 flex justify-center min-w-[1400px] print:p-0 print:min-w-0">
+      <div className="flex gap-8 shrink-0 print:block print:w-full">
+        <aside className="w-80 shrink-0 print:hidden">
           <ConfigForm
             birthdate={birthdate}
             setBirthdate={setBirthdate}
@@ -71,7 +71,7 @@ function App() {
             onSave={requestSave}
           />
         </aside>
-        <main className="shrink-0">
+        <main className="shrink-0 print:w-full print:mx-auto">
           <WeekGrid
             ref={gridRef}
             birthdate={birthdateObj}
@@ -80,7 +80,7 @@ function App() {
             colorMap={colorMap}
             dates={dates}
           />
-          <div className="flex gap-2 mt-4 justify-center">
+          <div className="flex gap-2 mt-4 justify-center print:hidden">
             <button
               onClick={handleDownloadPng}
               className="rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
@@ -120,7 +120,7 @@ function App() {
             />
           </div>
         </main>
-        <aside className="w-64 shrink-0">
+        <aside className="w-64 shrink-0 print:hidden">
           <DateForm
             dates={dates}
             setDates={setDates}
