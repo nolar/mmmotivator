@@ -8,7 +8,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Build:** `npm run build` (runs `tsc -b && vite build`, output in `dist/`)
 - **Lint:** `npm run lint` (ESLint 9 flat config with TypeScript + React hooks plugins)
 - **Type-check only:** `npx tsc --noEmit`
-- No test framework is configured.
+- **Unit/component tests:** `npx vitest run` (Vitest with jsdom + React Testing Library)
+- **Visual regression tests:** `npx playwright test` (requires `npm run build` first; uses Playwright with Chromium)
+- **Update Playwright baselines:** `npx playwright test --update-snapshots` (baselines are platform-specific, e.g. `full-page-darwin.png` / `full-page-linux.png`)
+
+## CI
+
+GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push with two parallel jobs:
+- **`test`** — lint + Vitest unit/component tests
+- **`test-e2e`** — build + Playwright visual regression (Chromium browsers are cached between runs; test artifacts uploaded on failure)
 
 ## Architecture
 
