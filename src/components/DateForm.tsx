@@ -11,10 +11,12 @@ interface DateFormProps {
   setDates: (v: DateMarker[]) => void;
   totalYears: number;
   setTotalYears: (v: number) => void;
+  showToday: boolean;
+  setShowToday: (v: boolean) => void;
   onSave: () => void;
 }
 
-export default function DateForm({ dates, setDates, totalYears, setTotalYears, onSave }: DateFormProps) {
+export default function DateForm({ dates, setDates, totalYears, setTotalYears, showToday, setShowToday, onSave }: DateFormProps) {
   const [openColorPicker, setOpenColorPicker] = useState<number | null>(null);
 
   const updateDate = (index: number, field: keyof DateMarker, value: string) => {
@@ -54,6 +56,10 @@ export default function DateForm({ dates, setDates, totalYears, setTotalYears, o
             onBlur={onSave}
             className="mt-1 block w-full rounded border border-gray-300 px-2 py-1 text-sm"
           />
+        </label>
+        <label className="flex items-center gap-2 mt-2">
+          <input type="checkbox" checked={showToday} onChange={(e) => { setShowToday(e.target.checked); onSave(); }} />
+          <span className="text-sm text-gray-600">Show today</span>
         </label>
       </div>
 

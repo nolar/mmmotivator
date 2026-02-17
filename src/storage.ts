@@ -29,6 +29,7 @@ export function loadConfig(): LifeConfig | null {
             ...(d.color ? { color: d.color } : {}),
           }))
         : [],
+      ...(typeof data.showToday === "boolean" ? { showToday: data.showToday } : {}),
     };
   } catch {
     return null;
@@ -74,6 +75,7 @@ export async function importConfigFile(file: File): Promise<LifeConfig> {
           ...(d.color ? { color: d.color } : {}),
         }))
       : [],
+    ...(typeof data.showToday === "boolean" ? { showToday: data.showToday } : {}),
   };
 }
 
@@ -99,5 +101,6 @@ function validateConfig(data: unknown): data is StoredConfig {
       if (d.color !== undefined && typeof d.color !== "string") return false;
     }
   }
+  if (obj.showToday !== undefined && typeof obj.showToday !== "boolean") return false;
   return true;
 }

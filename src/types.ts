@@ -16,4 +16,5 @@ export interface LifeConfig {
   totalYears: number; // how many rows
   periods: LifePeriod[];
   dates: DateMarker[];
+  showToday?: boolean;
 }

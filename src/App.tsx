@@ -16,18 +16,24 @@ function App() {
   const [totalYears, setTotalYears] = useState(initialConfig.totalYears);
   const [periods, setPeriods] = useState<LifePeriod[]>(initialConfig.periods);
   const [dates, setDates] = useState<DateMarker[]>(initialConfig.dates ?? []);
+  const [showToday, setShowToday] = useState(initialConfig.showToday ?? true);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const birthdateObj = useMemo(() => new Date(birthdate), [birthdate]);
   const colorMap = useMemo(() => assignColors(periods), [periods]);
+  const effectiveDates = useMemo(() => {
+    if (!showToday) return dates;
+    const todayMarker: DateMarker = { date: new Date().toISOString().slice(0, 10), title: "You are here" };
+    return [todayMarker, ...dates];
+  }, [showToday, dates]);
 
   const requestSave = useCallback(() => {
-    saveConfig({ birthdate, totalYears, periods, dates });
-  }, [birthdate, totalYears, periods, dates]);
+    saveConfig({ birthdate, totalYears, periods, dates, showToday });
+  }, [birthdate, totalYears, periods, dates, showToday]);
 
   const handleExport = () => {
-    exportConfigFile({ birthdate, totalYears, periods, dates });
+    exportConfigFile({ birthdate, totalYears, periods, dates, showToday });
   };
 
   const handleImport = async (file: File) => {
@@ -37,6 +43,7 @@ function App() {
       setTotalYears(config.totalYears);
       setPeriods(config.periods);
       setDates(config.dates ?? []);
+      setShowToday(config.showToday ?? true);
       saveConfig(config);
     } catch (e) {
       alert(e instanceof Error ? e.message : "Failed to import configuration");
@@ -57,6 +64,7 @@ function App() {
     setTotalYears(lifeConfig.totalYears);
     setPeriods(lifeConfig.periods);
     setDates(lifeConfig.dates);
+    setShowToday(lifeConfig.showToday ?? true);
     saveConfig(lifeConfig);
   };
 
@@ -79,7 +87,7 @@ function App() {
             totalYears={totalYears}
             periods={periods}
             colorMap={colorMap}
-            dates={dates}
+            dates={effectiveDates}
           />
           <div className="flex gap-2 mt-4 justify-center print:hidden">
             <button
@@ -156,6 +164,8 @@ function App() {
             setDates={setDates}
             totalYears={totalYears}
             setTotalYears={setTotalYears}
+            showToday={showToday}
+            setShowToday={setShowToday}
             onSave={requestSave}
           />
         </aside>

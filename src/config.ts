@@ -1,21 +1,22 @@
 import type { LifeConfig } from "./types";
 
 export const lifeConfig: LifeConfig = {
-  birthdate: "1990-06-15",
+  birthdate: "1986-06-15",
   totalYears: 90,
   periods: [
-    { label: "Childhood", start: "1990-06-15", end: "1997-08-31" },
-    { label: "School", start: "1997-09-01", end: "2008-06-30" },
-    { label: "University", start: "2008-09-01", end: "2013-06-30" },
-    { label: "First Job", start: "2013-07-01", end: "2017-03-31" },
-    { label: "Startup", start: "2017-04-01", end: "2020-12-31" },
-    { label: "Big Tech", start: "2021-01-01", end: "2025-12-31" },
-    { label: "Freelance", start: "2026-01-01", end: "2030-06-14" },
+    { label: "Childhood", start: "1986-06-15", end: "1993-08-31" },
+    { label: "School", start: "1993-09-01", end: "2004-06-30" },
+    { label: "University", start: "2004-09-01", end: "2009-06-30" },
+    { label: "First Job", start: "2009-07-01", end: "2013-03-31" },
+    { label: "Startup", start: "2013-04-01", end: "2016-12-31" },
+    { label: "Big Tech", start: "2017-01-01", end: "2021-12-31" },
+    { label: "Freelance", start: "2022-01-01", end: "2026-06-14" },
   ],
   dates: [
-    { date: "2013-07-01", title: "Career" },
-    { date: "2020-12-15", title: "PhD" },
-    { date: "2025-12-15", title: "🇺🇸" },
-    { date: "2057-06-15", title: "Retirement" },
+    { date: "2009-07-01", title: "Career" },
+    { date: "2016-12-15", title: "PhD" },
+    { date: "2019-09-15", title: "🇺🇸" },
+    { date: "2053-06-15", title: "Retirement" },
   ],
+  showToday: true,
 };

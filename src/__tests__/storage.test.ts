@@ -73,6 +73,24 @@ describe("saveConfig / loadConfig round-trip", () => {
     expect(loaded!.dates[0].color).toBe("bg-sky-400");
   });
 
+  it("round-trips showToday when true", () => {
+    saveConfig({ ...validConfig, showToday: true });
+    const loaded = loadConfig();
+    expect(loaded!.showToday).toBe(true);
+  });
+
+  it("round-trips showToday when false", () => {
+    saveConfig({ ...validConfig, showToday: false });
+    const loaded = loadConfig();
+    expect(loaded!.showToday).toBe(false);
+  });
+
+  it("omits showToday when not set", () => {
+    saveConfig(validConfig);
+    const loaded = loadConfig();
+    expect(loaded!.showToday).toBeUndefined();
+  });
+
   it("defaults dates to empty array when not in stored data", () => {
     localStorage.setItem(
       "life-in-weeks-config",
@@ -119,6 +137,19 @@ describe("loadConfig with invalid data", () => {
     );
     expect(loadConfig()).toBeNull();
   });
+
+  it("returns null when showToday is not a boolean", () => {
+    localStorage.setItem(
+      "life-in-weeks-config",
+      JSON.stringify({
+        birthdate: "1990-06-15",
+        totalYears: 90,
+        periods: [],
+        showToday: "yes",
+      })
+    );
+    expect(loadConfig()).toBeNull();
+  });
 });
 
 describe("importConfigFile", () => {
@@ -140,5 +171,12 @@ describe("importConfigFile", () => {
       type: "application/json",
     });
     await expect(importConfigFile(file)).rejects.toThrow("Invalid configuration file");
+  });
+
+  it("preserves showToday from imported file", async () => {
+    const json = JSON.stringify({ ...validConfig, version: 1, showToday: false });
+    const file = new File([json], "config.json", { type: "application/json" });
+    const result = await importConfigFile(file);
+    expect(result.showToday).toBe(false);
   });
 });

@@ -8,6 +8,13 @@ vi.mock("html-to-image", () => ({
   toPng: vi.fn(),
 }));
 
+vi.mock("../storage", () => ({
+  loadConfig: vi.fn(() => null),
+  saveConfig: vi.fn(),
+  exportConfigFile: vi.fn(),
+  importConfigFile: vi.fn(),
+}));
+
 describe("App", () => {
   it("renders the Download PNG button", () => {
     render(<MemoryRouter><App /></MemoryRouter>);
@@ -77,6 +84,29 @@ describe("App", () => {
   it("renders sponsor intro text", () => {
     render(<MemoryRouter><App /></MemoryRouter>);
     expect(screen.getByText(/support the author with bread & beer/)).toBeInTheDocument();
+  });
+
+  it("renders Show today checkbox checked by default", () => {
+    render(<MemoryRouter><App /></MemoryRouter>);
+    const checkbox = screen.getByRole("checkbox", { name: "Show today" });
+    expect(checkbox).toBeInTheDocument();
+    expect(checkbox).toBeChecked();
+  });
+
+  it("adds a star for today when Show today is checked", () => {
+    const { container } = render(<MemoryRouter><App /></MemoryRouter>);
+    const starsWithToday = container.querySelectorAll("svg").length;
+    const checkbox = screen.getByRole("checkbox", { name: "Show today" });
+    fireEvent.click(checkbox);
+    const starsWithout = container.querySelectorAll("svg").length;
+    expect(starsWithToday).toBe(starsWithout + 1);
+  });
+
+  it("unchecks Show today checkbox on click", () => {
+    render(<MemoryRouter><App /></MemoryRouter>);
+    const checkbox = screen.getByRole("checkbox", { name: "Show today" });
+    fireEvent.click(checkbox);
+    expect(checkbox).not.toBeChecked();
   });
 
   it("applies print layout classes to root containers", () => {
