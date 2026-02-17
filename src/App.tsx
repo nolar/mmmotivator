@@ -100,13 +100,13 @@ function App() {
               onClick={handleExport}
               className="rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
             >
-              Export
+              Save to file
             </button>
             <button
               onClick={() => fileInputRef.current?.click()}
               className="rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
             >
-              Import
+              Load from file
             </button>
             <button
               onClick={handleReset}
