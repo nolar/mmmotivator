@@ -114,6 +114,51 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Copy link" })).toBeInTheDocument();
   });
 
+  it("shifts period start and end dates when birthdate changes", () => {
+    render(<MemoryRouter><App /></MemoryRouter>);
+
+    const birthdateInput = screen.getByLabelText("Birthdate");
+    expect(birthdateInput).toHaveValue("1986-06-15");
+    // Childhood: 1986-06-15 to 1993-08-31
+    expect(screen.getAllByDisplayValue("1993-08-31")).toHaveLength(1);
+
+    // Move birthdate forward by 5 days
+    fireEvent.change(birthdateInput, { target: { value: "1986-06-20" } });
+
+    // Childhood end should shift by +5: 1993-08-31 -> 1993-09-05
+    expect(screen.queryAllByDisplayValue("1993-08-31")).toHaveLength(0);
+    expect(screen.getAllByDisplayValue("1993-09-05")).toHaveLength(1);
+    // Childhood start should shift by +5: 1986-06-15 -> 1986-06-20
+    // (birthdate input + Childhood start = 2 elements with that value)
+    expect(screen.getAllByDisplayValue("1986-06-20").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("shifts date markers when birthdate changes", () => {
+    render(<MemoryRouter><App /></MemoryRouter>);
+
+    // Default date marker "PhD" on 2016-12-15
+    expect(screen.getAllByDisplayValue("2016-12-15")).toHaveLength(1);
+
+    // Move birthdate forward by 5 days
+    const birthdateInput = screen.getByLabelText("Birthdate");
+    fireEvent.change(birthdateInput, { target: { value: "1986-06-20" } });
+
+    // PhD date should shift +5: 2016-12-15 -> 2016-12-20
+    expect(screen.queryAllByDisplayValue("2016-12-15")).toHaveLength(0);
+    expect(screen.getAllByDisplayValue("2016-12-20")).toHaveLength(1);
+  });
+
+  it("does not shift dates when birthdate is set to the same value", () => {
+    render(<MemoryRouter><App /></MemoryRouter>);
+
+    const birthdateInput = screen.getByLabelText("Birthdate");
+    fireEvent.change(birthdateInput, { target: { value: "1986-06-15" } });
+
+    // Everything should remain unchanged
+    expect(screen.getAllByDisplayValue("1986-06-15").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByDisplayValue("1993-08-31")).toHaveLength(1);
+  });
+
   it("applies print layout classes to root containers", () => {
     const { container } = render(<MemoryRouter><App /></MemoryRouter>);
     const root = container.firstElementChild!;

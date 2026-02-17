@@ -24,6 +24,15 @@ function getInitialConfig() {
 
 const initialConfig = getInitialConfig();
 
+function shiftDate(iso: string, deltaDays: number): string {
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + deltaDays);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function App() {
   const [birthdate, setBirthdate] = useState(initialConfig.birthdate);
   const [totalYears, setTotalYears] = useState(initialConfig.totalYears);
@@ -41,6 +50,17 @@ function App() {
     const todayMarker: DateMarker = { date: new Date().toISOString().slice(0, 10), title: "You are here" };
     return [todayMarker, ...dates];
   }, [showToday, dates]);
+
+  const handleBirthdateChange = useCallback((newBirthdate: string) => {
+    const oldMs = new Date(birthdate + "T00:00:00").getTime();
+    const newMs = new Date(newBirthdate + "T00:00:00").getTime();
+    const deltaDays = Math.round((newMs - oldMs) / (1000 * 60 * 60 * 24));
+    if (deltaDays !== 0) {
+      setPeriods(prev => prev.map(p => ({ ...p, start: shiftDate(p.start, deltaDays), end: shiftDate(p.end, deltaDays) })));
+      setDates(prev => prev.map(d => ({ ...d, date: shiftDate(d.date, deltaDays) })));
+    }
+    setBirthdate(newBirthdate);
+  }, [birthdate]);
 
   const requestSave = useCallback(() => {
     saveConfig({ birthdate, totalYears, periods, dates, showToday });
@@ -96,7 +116,7 @@ function App() {
         <aside className="w-80 shrink-0 print:hidden">
           <ConfigForm
             birthdate={birthdate}
-            setBirthdate={setBirthdate}
+            setBirthdate={handleBirthdateChange}
             periods={periods}
             setPeriods={setPeriods}
             onSave={requestSave}
