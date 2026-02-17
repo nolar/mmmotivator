@@ -157,7 +157,7 @@ function App() {
             />
           </div>
           <div className="mt-3 text-center print:hidden">
-            <p className="text-sm text-gray-500 mb-2">If you like the app, please support the author with cakes &amp; coffee:</p>
+            <p className="text-sm text-gray-500 mb-2">❤️ If you like the app, please support the author with 🍰 cakes &amp; coffee: ☕️</p>
             <div className="flex gap-2 justify-center">
               <a
                 href="https://github.com/sponsors/nolar/"

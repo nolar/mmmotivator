@@ -83,7 +83,7 @@ describe("App", () => {
 
   it("renders sponsor intro text", () => {
     render(<MemoryRouter><App /></MemoryRouter>);
-    expect(screen.getByText(/support the author with cakes & coffee/)).toBeInTheDocument();
+    expect(screen.getByText(/support the author with 🍰 cakes & coffee: ☕️/)).toBeInTheDocument();
   });
 
   it("renders Show today checkbox checked by default", () => {
