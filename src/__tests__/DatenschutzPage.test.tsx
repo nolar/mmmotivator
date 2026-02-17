@@ -12,13 +12,14 @@ describe("DatenschutzPage", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Datenschutz");
   });
 
-  it("renders the placeholder text", () => {
-    render(
+  it("renders the privacy policy content with prose styling", () => {
+    const { container } = render(
       <MemoryRouter>
         <DatenschutzPage />
       </MemoryRouter>,
     );
-    expect(screen.getByText("Datenschutz content coming soon.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Präambel/ })).toBeInTheDocument();
+    expect(container.querySelector("article.prose")).toBeInTheDocument();
   });
 
   it("renders a back link to home", () => {
