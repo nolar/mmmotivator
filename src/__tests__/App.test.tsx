@@ -68,6 +68,10 @@ describe("App", () => {
     const paypal = screen.getByRole("link", { name: "Sponsor via PayPal" });
     expect(paypal).toHaveAttribute("href", "https://paypal.me/nolarinfo");
     expect(paypal).toHaveAttribute("target", "_blank");
+
+    const coffee = screen.getByRole("link", { name: "Buy Me a Coffee" });
+    expect(coffee).toHaveAttribute("href", "https://buymeacoffee.com/nolar");
+    expect(coffee).toHaveAttribute("target", "_blank");
   });
 
   it("renders sponsor intro text", () => {
