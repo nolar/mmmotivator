@@ -37,6 +37,10 @@ Single-page React app that renders a "Life in Weeks" grid — a visual grid wher
 
 **Styling:** Tailwind CSS v4 via `@tailwindcss/vite` plugin. No custom CSS beyond `@import "tailwindcss"` in `index.css`. Colors for periods are Tailwind class strings (e.g. `"bg-rose-400"`), not hex values.
 
+## Testing Conventions
+
+Test files under `src/` are compiled by `tsconfig.app.json`, which only includes browser types (`DOM`, `vite/client`, `vitest/globals`) — **no Node.js types**. Do not use `fs`, `path`, `__dirname`, or other Node.js APIs in these tests. Instead, use Vite-native imports: `import config from "../../vercel.json"` for JSON, or `import html from "../../index.html?raw"` for raw file contents.
+
 ## Known Issues
 
 See `TASKS.md` for security review findings. Notable: `getCellDate()` mutates its `birthdate` argument — callers must pass a fresh `Date` or copy.
