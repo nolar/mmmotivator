@@ -129,7 +129,7 @@ const WeekGrid = forwardRef<HTMLDivElement, WeekGridProps>(function WeekGrid({
               })}
               <div
                 key={`ann-${year}`}
-                className={`flex items-center justify-end pl-0.5${marker ? ` border-t-2 ${borderColor}` : ""}`}
+                className={`flex items-center justify-end pl-0.5 h-2.5${marker ? ` border-t-2 ${borderColor}` : ""}`}
               >
                 {marker && (
                   <span className={`text-[9px] leading-[10px] font-bold whitespace-nowrap ${textColor}`} style={{ fontFamily: "Impact" }}>
