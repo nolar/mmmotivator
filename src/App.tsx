@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { toPng } from "html-to-image";
 import { lifeConfig } from "./config";
 import { loadConfig, saveConfig, exportConfigFile, importConfigFile } from "./storage";
+import { encodeConfig, decodeConfig } from "./sharing";
 import { assignColors } from "./colors";
 import type { DateMarker, LifePeriod } from "./types";
 import WeekGrid from "./components/WeekGrid";
@@ -9,7 +10,19 @@ import ConfigForm from "./components/ConfigForm";
 import DateForm from "./components/DateForm";
 import SiteFooter from "./components/SiteFooter";
 
-const initialConfig = loadConfig() ?? lifeConfig;
+function getInitialConfig() {
+  const hash = window.location.hash;
+  if (hash.length > 1) {
+    const fromHash = decodeConfig(hash.slice(1));
+    if (fromHash) {
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+      return fromHash;
+    }
+  }
+  return loadConfig() ?? lifeConfig;
+}
+
+const initialConfig = getInitialConfig();
 
 function App() {
   const [birthdate, setBirthdate] = useState(initialConfig.birthdate);
@@ -18,6 +31,7 @@ function App() {
   const [dates, setDates] = useState<DateMarker[]>(initialConfig.dates ?? []);
   const [showToday, setShowToday] = useState(initialConfig.showToday ?? true);
 
+  const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const birthdateObj = useMemo(() => new Date(birthdate), [birthdate]);
@@ -48,6 +62,14 @@ function App() {
     } catch (e) {
       alert(e instanceof Error ? e.message : "Failed to import configuration");
     }
+  };
+
+  const handleCopyLink = async () => {
+    const encoded = encodeConfig({ birthdate, totalYears, periods, dates, showToday });
+    const url = window.location.origin + window.location.pathname + "#" + encoded;
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleDownloadPng = async () => {
@@ -95,6 +117,12 @@ function App() {
               className="rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
             >
               Download PNG
+            </button>
+            <button
+              onClick={handleCopyLink}
+              className="rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
+            >
+              {copied ? "Copied!" : "Copy link"}
             </button>
             <button
               onClick={handleExport}

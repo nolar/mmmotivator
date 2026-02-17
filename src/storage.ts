@@ -79,7 +79,7 @@ export async function importConfigFile(file: File): Promise<LifeConfig> {
   };
 }
 
-function validateConfig(data: unknown): data is StoredConfig {
+export function validateConfig(data: unknown): data is LifeConfig {
   if (typeof data !== "object" || data === null) return false;
   const obj = data as Record<string, unknown>;
   if (typeof obj.birthdate !== "string") return false;

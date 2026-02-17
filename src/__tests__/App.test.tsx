@@ -109,6 +109,11 @@ describe("App", () => {
     expect(checkbox).not.toBeChecked();
   });
 
+  it("renders the Copy link button", () => {
+    render(<MemoryRouter><App /></MemoryRouter>);
+    expect(screen.getByRole("button", { name: "Copy link" })).toBeInTheDocument();
+  });
+
   it("applies print layout classes to root containers", () => {
     const { container } = render(<MemoryRouter><App /></MemoryRouter>);
     const root = container.firstElementChild!;
