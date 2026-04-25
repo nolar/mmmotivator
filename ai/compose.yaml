@@ -1,0 +1,61 @@
+name: mmmai
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run
+    env_file: env_tunnel
+    restart: unless-stopped
+    networks: [ollama]
+
+  testserver:
+    image: python:3.14-slim
+    command: python3 -m http.server 8080 --directory /app
+    volumes:
+      - ./testserver:/app:ro
+    expose: ["8080"]
+    restart: unless-stopped
+    networks: [ollama]
+
+  ollama:
+    image: ollama/ollama:latest
+    environment:
+      - OLLAMA_MODELS=/models
+      - OLLAMA_KEEP_ALIVE=1h
+    volumes:
+      - models:/models
+    expose: ["11434"]
+    restart: unless-stopped
+    networks: [ollama]
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  ollama-pull:
+    image: curlimages/curl:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      set -e
+      echo "Pulling qwen3.5:2b..."
+      curl -fsS -N -X POST http://ollama:11434/api/pull \
+        -H 'Content-Type: application/json' \
+        -d '{"model":"qwen3.5:2b"}' | tee /dev/stderr | grep -q '"status":"success"'
+      echo "Pulling gemma4:e4b..."
+      curl -fsS -N -X POST http://ollama:11434/api/pull \
+        -H 'Content-Type: application/json' \
+        -d '{"model":"gemma4:e4b"}' | tee /dev/stderr | grep -q '"status":"success"'
+      echo "All models pulled."
+    restart: "no"
+    networks: [ollama]
+
+volumes:
+  models:
+
+networks:
+  ollama:
