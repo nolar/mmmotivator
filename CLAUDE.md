@@ -44,3 +44,8 @@ Test files under `src/` are compiled by `tsconfig.app.json`, which only includes
 ## Known Issues
 
 See `TASKS.md` for security review findings. Notable: `getCellDate()` mutates its `birthdate` argument — callers must pass a fresh `Date` or copy.
+
+
+## Naming
+
+This project was previously named `fancy-app`, later renamed to `mmmotivator` manually, including the directory name (in case you get confused by the old name somewhere).
