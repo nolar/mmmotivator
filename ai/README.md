@@ -5,10 +5,10 @@ app through a Cloudflare Tunnel with service-token authentication. The
 host has no inbound ports open and no public DNS record — only an
 outbound connection to Cloudflare.
 
-The API talks to Ollama Cloud directly using `OLLAMA_API_KEY` (default).
-A local Ollama service is also included for when you want to run local
-models, or have a local Ollama proxy cloud calls — but it's not on the
-default path.
+The API talks to its LLM provider via the OpenAI-compatible endpoint
+configured in `env_llm` (default: Ollama Cloud). A local Ollama service
+is also included for when you want to run local models, or have a local
+Ollama proxy cloud calls — but it's not on the default path.
 
 The backend is stateless: nothing is persisted between requests. The
 only on-disk state is the cache of any locally-stored models (Docker
@@ -27,8 +27,10 @@ App (server side) ──HTTPS──▶ Cloudflare edge (Access) ──tunnel─�
 
 - `cloudflared` — outbound-only connection to Cloudflare; routes incoming
   tunnel requests to the right internal service.
-- `api` — FastAPI service handling the public endpoints. Calls Ollama
-  (cloud or local, configurable via `OLLAMA_HOST`).
+- `api` — FastAPI service handling the public endpoints. Calls any
+  OpenAI-compatible LLM provider (cloud Ollama by default, plus
+  examples for local Ollama, OpenAI, and Cloudflare Workers AI).
+  Configurable via `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `MODEL`.
 - `ollama` *(optional in concept)* — local Ollama instance. Useful for
   local-only models, or for letting a local Ollama proxy cloud calls
   with its own ed25519 auth. Default deployments don't route through it,
@@ -102,17 +104,19 @@ chmod 600 env_tunnel
 
 Edit `env_tunnel` and set `TUNNEL_TOKEN` to the value from the Cloudflare dashboard.
 
-Configure how the `api` service reaches Ollama:
+Configure how the `api` service reaches its LLM provider:
 
 ```bash
-cp env_ollama.example env_ollama
-chmod 600 env_ollama
+cp env_llm.example env_llm
+chmod 600 env_llm
 ```
 
-Edit `env_ollama`. By default it points at Ollama Cloud and expects an
-API key issued at <https://ollama.com/settings/keys> in `OLLAMA_API_KEY`.
-The same file shows a commented alternative configuration that routes
-through the local Ollama service instead.
+Edit `env_llm`. By default it points at Ollama Cloud and expects an API
+key issued at <https://ollama.com/settings/keys> in `OPENAI_API_KEY`
+(read directly by the OpenAI Python SDK). The same file ships commented
+alternative blocks for the local Ollama service, OpenAI proper, and
+Cloudflare Workers AI — switching providers is just changing the
+uncommented block.
 
 If you also want the local Ollama in this stack to talk to Ollama Cloud
 (only needed when the api routes through it), generate an ed25519
@@ -172,15 +176,16 @@ Or locally:
 docker run -it --rm --network=mmmai_ollama curlimages/curl:latest curl -i -X POST http://api:8000/bio/  --data "Born 1985 in Paris. Studied physics at MIT 2003-2007. Worked at Google 2008-2015. Founded a startup in 2016, ongoing."
 ```
 
-Authentication errors from Ollama (502 with "Upstream error") usually
-mean `OLLAMA_API_KEY` in `env_ollama` is missing, expired, or doesn't
-match a key issued at <https://ollama.com/settings/keys>.
+Authentication errors from the upstream LLM (502 with "Upstream error")
+usually mean `OPENAI_API_KEY` in `env_llm` is missing, expired, or
+doesn't match a key issued by the configured provider (for the default
+Ollama Cloud, that's <https://ollama.com/settings/keys>).
 
 If you also want to smoke-test the local Ollama directly, that path
 remains:
 
 ```bash
-docker compose exec -it ollama ollama run qwen3.5:397b-cloud
+docker compose exec -it ollama ollama run gemma4:31b-cloud
 ```
 
 Exit the REPL with `/bye` or Ctrl-D.
@@ -203,7 +208,7 @@ To free disk space or drop a model that's no longer needed, exec into the
 running `ollama` container and run `ollama rm`:
 
 ```bash
-docker compose exec ollama ollama rm qwen3.5:397b-cloud
+docker compose exec ollama ollama rm gemma4:31b-cloud
 ```
 
 The model is deleted from the `models` volume immediately. To stop it
@@ -227,14 +232,15 @@ recovering from a corrupted volume; not needed for routine restarts.
 ## Operational notes
 
 - **Inference location.** By default the `api` calls Ollama Cloud
-  directly with `OLLAMA_API_KEY`. Server CPU, RAM and disk usage stay
-  near-zero regardless of request volume. To route through the local
-  Ollama service, change `OLLAMA_HOST` in `env_ollama` to
-  `http://ollama:11434`. `OLLAMA_KEEP_ALIVE` is a no-op for cloud
-  models; both settings start to matter again only if you run
-  local-only models.
-- **Choosing the bio model.** `OLLAMA_MODEL` in `env_ollama` overrides
-  the model used by `/bio/`. Default is `qwen3.5:397b-cloud`.
+  directly with `OPENAI_API_KEY` against the OpenAI-compatible
+  endpoint. Server CPU, RAM and disk usage stay near-zero regardless of
+  request volume. To route through a different provider, edit
+  `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `MODEL` in `env_llm`.
+  `OLLAMA_KEEP_ALIVE` (on the local `ollama` service) is a no-op for
+  cloud models; it starts mattering only if local-only models are in
+  use.
+- **Choosing the bio model.** `MODEL` in `env_llm` overrides the model
+  used by `/bio/`. Default is `gemma4:31b-cloud`.
 - **Input limits.** `/bio/` rejects bodies longer than 1024 characters
   with HTTP 413 before forwarding to Ollama, capping cost-per-request.
   Generation is also capped at ~2000 tokens.

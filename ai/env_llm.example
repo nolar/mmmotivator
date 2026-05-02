@@ -1,0 +1,23 @@
+# OpenAI-compatible LLM endpoint configuration. Read by the OpenAI Python
+# SDK directly (OPENAI_BASE_URL, OPENAI_API_KEY). Works with any provider
+# that exposes an OpenAI-compatible API.
+
+# Default: Ollama Cloud
+OPENAI_BASE_URL=https://ollama.com/v1
+OPENAI_API_KEY=
+MODEL=gemma4:31b-cloud
+
+# Alternative: local Ollama service in this stack
+# OPENAI_BASE_URL=http://ollama:11434/v1
+# OPENAI_API_KEY=ollama
+# MODEL=gemma4:31b-cloud
+
+# Alternative: OpenAI proper
+# OPENAI_BASE_URL=https://api.openai.com/v1
+# OPENAI_API_KEY=sk-...
+# MODEL=gpt-4o-mini
+
+# Alternative: Cloudflare Workers AI (replace <account_id>)
+# OPENAI_BASE_URL=https://api.cloudflare.com/client/v4/accounts/<account_id>/ai/v1
+# OPENAI_API_KEY=<cloudflare_api_token>
+# MODEL=@cf/qwen/qwen2.5-coder-32b-instruct

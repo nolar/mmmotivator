@@ -40,11 +40,14 @@ cloudflared on host
    │ HTTP (internal docker network)
    ▼
 api:8000 (FastAPI)
-   │ ollama Python SDK (async)
+   │ openai Python SDK (async, OpenAI-compatible API)
    │
-   ├─▶ Ollama Cloud — default; OLLAMA_API_KEY in env_ollama
+   ├─▶ Ollama Cloud — default; OPENAI_BASE_URL=https://ollama.com/v1, OPENAI_API_KEY in env_llm
    │
-   └─▶ ollama:11434 (local) — only when OLLAMA_HOST=http://ollama:11434
+   ├─▶ OpenAI proper, Cloudflare Workers AI, or any other OpenAI-compat provider
+   │     (just edit env_llm; commented examples shipped)
+   │
+   └─▶ ollama:11434 (local) — when OPENAI_BASE_URL=http://ollama:11434/v1
             │
             ├─▶ Ollama Cloud (uses ed25519 keypair on the local container)
             └─▶ local model from the models volume (no external traffic)
@@ -83,9 +86,11 @@ of whichever directory `docker compose` is invoked from).
   Python 3.14-slim. Dependencies declared in `pyproject.toml`, locked
   in a checked-in `uv.lock` for reproducible builds. The Dockerfile
   installs them with `uv sync --frozen --no-install-project` (no
-  `requirements.txt`). All endpoints async; the upstream Ollama call
-  uses the official `ollama` Python SDK's `AsyncClient`, not raw HTTP.
-  Endpoints:
+  `requirements.txt`). All endpoints async; the upstream LLM call uses
+  the official `openai` Python SDK's `AsyncOpenAI` against an
+  OpenAI-compatible endpoint, so the same code works with Ollama Cloud,
+  OpenAI proper, Cloudflare Workers AI, Groq, and other providers
+  exposing the same API. Endpoints:
   - `GET /` — returns `"Hello!"`. Doubles as the tunnel/Access health
     check from outside.
   - `POST /bio/` — accepts a raw text bio (≤ `MAX_INPUT_CHARS = 1024`),
@@ -95,19 +100,20 @@ of whichever directory `docker compose` is invoked from).
     schema mismatch the call returns 502 (fail-closed, prompt-injection
     containment).
 
-  `env_file: env_ollama` injects:
-  - `OLLAMA_HOST` — endpoint, default `https://ollama.com`. Set to
-    `http://ollama:11434` to route through the local service.
-  - `OLLAMA_API_KEY` — bearer token for cloud auth. Issued at
-    <https://ollama.com/settings/keys>. Sent as
-    `Authorization: Bearer <key>` by the SDK.
-  - `OLLAMA_MODEL` (optional) — overrides the bio-endpoint model
-    (default `qwen3.5:397b-cloud`).
+  `env_file: env_llm` injects (read directly by the OpenAI SDK):
+  - `OPENAI_BASE_URL` — provider endpoint, default
+    `https://ollama.com/v1`. Switch to any OpenAI-compatible provider
+    by changing this.
+  - `OPENAI_API_KEY` — bearer token for the chosen provider. For Ollama
+    Cloud, issued at <https://ollama.com/settings/keys>.
+  - `MODEL` — model identifier (default `gemma4:31b-cloud`); the
+    valid values depend on the configured provider.
 - **`ollama`** *(off the default path)* — `ollama/ollama:latest`.
   Starts with the stack but is only reached when the `api`'s
-  `OLLAMA_HOST` is pointed at it, or when used directly via
-  `docker compose exec`. Acts as proxy to Ollama Cloud for `:cloud`
-  model tags, or as a local inference server for non-cloud models.
+  `api`'s `OPENAI_BASE_URL` is pointed at it, or when used directly
+  via `docker compose exec`. Acts as proxy to Ollama Cloud for
+  `:cloud` model tags, or as a local inference server for non-cloud
+  models.
   CPU-only (no GPU device requests). `OLLAMA_MODELS=/models` redirects
   local model storage to a named Docker volume.
   `OLLAMA_KEEP_ALIVE=1h` only matters for local models. Healthcheck
@@ -138,11 +144,13 @@ confirmation rather than swap to a different tag.
 There are two authentication paths to Ollama Cloud, used by different
 services:
 
-- **`api` service → Ollama Cloud (default).** Uses an account-bound
-  **API key** passed as `Authorization: Bearer <key>` by the `ollama`
-  Python SDK. The key is read from `OLLAMA_API_KEY` in `env_ollama`.
-  This is the simpler, headless mechanism — no SSH-key management on
-  the deployment host.
+- **`api` service → upstream provider (default: Ollama Cloud).** Uses
+  an account-bound **API key** passed as `Authorization: Bearer <key>`
+  by the OpenAI SDK. The key is read from `OPENAI_API_KEY` in
+  `env_llm`. This is the simpler, headless mechanism — no SSH-key
+  management on the deployment host. Issuing/rotating keys is provider
+  side: <https://ollama.com/settings/keys> for Ollama Cloud,
+  <https://platform.openai.com/api-keys> for OpenAI proper, etc.
 - **Local `ollama` service → Ollama Cloud (only when api routes
   through it, or for direct `compose exec` smoke tests).** Uses
   **ed25519 keypair** auth: `id_ed25519` / `id_ed25519.pub` bind-mounted
@@ -153,23 +161,31 @@ Both API keys and SSH keys are issued from
 <https://ollama.com/settings/keys>. They're separate credentials —
 having one doesn't grant the other.
 
-`env_ollama`, `id_ed25519`, and `id_ed25519.pub` are all gitignored.
+`env_llm`, `id_ed25519`, and `id_ed25519.pub` are all gitignored.
 They're deployment-host artefacts, not source.
 
-## Ollama endpoint switch
+## LLM provider switch
 
-`OLLAMA_HOST` in `env_ollama` selects which Ollama the `api` calls:
+`OPENAI_BASE_URL` / `OPENAI_API_KEY` / `MODEL` in `env_llm` select the
+upstream the `api` calls. Anything that exposes an OpenAI-compatible
+chat-completions endpoint will work; the same code path covers all of
+them.
 
-- `https://ollama.com` (default) — direct cloud, requires
-  `OLLAMA_API_KEY`. Server CPU/RAM/disk usage near-zero per request.
-- `http://ollama:11434` — routes through the local Ollama service in
-  the same docker network. The local Ollama's own auth (ed25519)
-  determines whether *it* can then reach cloud, or whether it serves a
-  local model from the `models` volume.
+`env_llm.example` ships commented configuration blocks for:
 
-`env_ollama.example` ships both options as commented entries so the
-choice is explicit. The default keeps the local Ollama optional in
-practice even though it starts with the stack.
+- **Ollama Cloud** (default) — `https://ollama.com/v1`, account-bound
+  API key, models like `gemma4:31b-cloud` or `qwen3.5:397b-cloud`.
+- **Local Ollama** in this stack — `http://ollama:11434/v1`, any
+  non-empty `OPENAI_API_KEY` (the SDK rejects an empty one). The local
+  Ollama's own auth (ed25519) governs *its* upstream calls.
+- **OpenAI proper** — `https://api.openai.com/v1`, `sk-...` key,
+  models like `gpt-4o-mini`.
+- **Cloudflare Workers AI** — account-scoped URL,
+  `https://api.cloudflare.com/client/v4/accounts/<account_id>/ai/v1`,
+  Cloudflare API token, models like `@cf/qwen/...`.
+
+Switching providers is "edit `env_llm`, restart the api container".
+No code change required.
 
 ## Cloudflare configuration (dashboard locations)
 
@@ -217,15 +233,15 @@ on-disk state is:
 
 - The `models` volume — local model weights for any non-cloud models
   (cloud models leave nothing here).
-- Host-local credential files (`env_tunnel`, `env_ollama`,
+- Host-local credential files (`env_tunnel`, `env_llm`,
   `id_ed25519`, `id_ed25519.pub`). Configuration, not session state, but
   not in source either.
 
 The volume can be wiped (`docker compose down --volumes`) and the
 credentials regenerated without external coordination — though
 regenerating ed25519 keys requires re-registering the public half on
-ollama.com, and rotating `OLLAMA_API_KEY` requires issuing a new key
-there. Per-session storage (chat history, retrieval indexes, etc.) on
+ollama.com, and rotating `OPENAI_API_KEY` requires issuing a new key
+on the configured provider's dashboard. Per-session storage (chat history, retrieval indexes, etc.) on
 the backend is a non-goal; if a future change wants to introduce it,
 that should be flagged and discussed rather than silently added.
 

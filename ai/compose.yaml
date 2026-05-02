@@ -10,7 +10,7 @@ services:
 
   api:
     build: ./api
-    env_file: env_ollama
+    env_file: env_llm
     expose: ["8000"]
     restart: unless-stopped
     networks: [ollama]
