@@ -1,0 +1,12 @@
+# Default: cloud endpoint with API key.
+OLLAMA_HOST=https://ollama.com
+OLLAMA_API_KEY=
+
+# Alternative: route through the local Ollama service in this stack.
+# Useful when running local-only models, or when you want the local
+# Ollama to proxy cloud models (it uses its own SSH-key auth).
+# OLLAMA_HOST=http://ollama:11434
+# OLLAMA_API_KEY=
+
+# Optional: override the model used by the /bio/ endpoint.
+# OLLAMA_MODEL=qwen3.5:397b-cloud

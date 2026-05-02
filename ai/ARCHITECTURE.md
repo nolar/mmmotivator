@@ -30,13 +30,32 @@ the `:cloud` suffix.
 ## Architecture
 
 ```
-App (server side) ──HTTPS──▶ Cloudflare edge (Access) ──tunnel──▶ cloudflared ──HTTP──▶ ollama:11434 ──▶ Ollama Cloud
-                                                                                                ↑
-                                                                              ed25519 keypair (signs cloud auth)
+App (server side)
+   │ HTTPS
+   ▼
+Cloudflare edge (Access enforces service-token auth, HTTP 403 on missing tokens)
+   │ tunnel
+   ▼
+cloudflared on host
+   │ HTTP (internal docker network)
+   ▼
+api:8000 (FastAPI)
+   │ ollama Python SDK (async)
+   │
+   ├─▶ Ollama Cloud — default; OLLAMA_API_KEY in env_ollama
+   │
+   └─▶ ollama:11434 (local) — only when OLLAMA_HOST=http://ollama:11434
+            │
+            ├─▶ Ollama Cloud (uses ed25519 keypair on the local container)
+            └─▶ local model from the models volume (no external traffic)
 ```
 
-For non-cloud models, the last hop is local: Ollama serves inference from
-the `models` volume on the same host, no external traffic.
+The Cloudflare-tunnel route points at `api:8000`; the `api` service is
+the public surface. The local `ollama` and `ollama-pull` services start
+with the rest of the stack but are off the default path — they only
+participate when the api is configured to route through the local
+Ollama (or when used directly for ad-hoc smoke testing via
+`docker compose exec`).
 
 - The server host has **no inbound ports open** and **no public DNS
   record** pointing at it. Only `cloudflared` keeps an outbound persistent
@@ -60,67 +79,97 @@ of whichever directory `docker compose` is invoked from).
 - **`cloudflared`** — `cloudflare/cloudflared:latest`. Outbound-only
   tunnel daemon. Reads `TUNNEL_TOKEN` from `env_tunnel` via `env_file:`
   (deliberately explicit; project-level `.env` auto-loading is not used).
-- **`ollama`** — `ollama/ollama:latest`. Acts as the authenticated
-  proxy to Ollama Cloud for `:cloud` model tags, and as a local
-  inference server for any non-cloud models. CPU-only (no GPU device
-  requests). `OLLAMA_MODELS=/models` redirects local model storage to a
-  named Docker volume. `OLLAMA_KEEP_ALIVE=1h` only matters for local
-  models. Healthcheck uses `ollama list` (lightweight roundtrip to the
-  local server). The image binds to `0.0.0.0:11434` by default — no
-  `OLLAMA_HOST` override needed.
-  
-  Ollama Cloud authentication: `id_ed25519` and `id_ed25519.pub` are
-  bind-mounted read-only into `/root/.ollama/` from the working
-  directory. Ollama uses the private key to sign requests to
-  ollama.com; the public key must be registered at
-  <https://ollama.com/settings/keys> for the auth to succeed.
-- **`ollama-pull`** — pre-registers configured models on `compose up`.
-  Uses the `curlimages/curl` image and calls Ollama's HTTP `/api/pull`
-  endpoint **deliberately, not the `ollama` CLI** (see gotcha below).
-  For cloud models the operation is essentially a metadata sync; for
-  local models it's a real download. Depends on `ollama` being healthy.
-  `restart: "no"` so it doesn't loop after success.
-- **`testserver`** — `python:3.14-slim` with an inline
-  `python3 -m http.server` command serving `./testserver/`. Returns
-  `Hello` for `/`. Used to verify the tunnel + Access setup without
-  involving Ollama; switch the Cloudflare Published Application route to
-  `testserver:8080` while debugging.
+- **`api`** — built from `ai/api/`. FastAPI app on port 8000 using
+  Python 3.14-slim. Dependencies declared in `pyproject.toml`, locked
+  in a checked-in `uv.lock` for reproducible builds. The Dockerfile
+  installs them with `uv sync --frozen --no-install-project` (no
+  `requirements.txt`). All endpoints async; the upstream Ollama call
+  uses the official `ollama` Python SDK's `AsyncClient`, not raw HTTP.
+  Endpoints:
+  - `GET /` — returns `"Hello!"`. Doubles as the tunnel/Access health
+    check from outside.
+  - `POST /bio/` — accepts a raw text bio (≤ `MAX_INPUT_CHARS = 1024`),
+    sends it through a system prompt that asks for a strict
+    JSON-schema-conformant list of `LifePeriod` records, caps generation
+    at `MAX_OUTPUT_TOKENS = 2000`. Output validated by Pydantic; on
+    schema mismatch the call returns 502 (fail-closed, prompt-injection
+    containment).
 
-All four services share a custom network named `ollama` (the user
-preferred this over a generic `internal` name).
+  `env_file: env_ollama` injects:
+  - `OLLAMA_HOST` — endpoint, default `https://ollama.com`. Set to
+    `http://ollama:11434` to route through the local service.
+  - `OLLAMA_API_KEY` — bearer token for cloud auth. Issued at
+    <https://ollama.com/settings/keys>. Sent as
+    `Authorization: Bearer <key>` by the SDK.
+  - `OLLAMA_MODEL` (optional) — overrides the bio-endpoint model
+    (default `qwen3.5:397b-cloud`).
+- **`ollama`** *(off the default path)* — `ollama/ollama:latest`.
+  Starts with the stack but is only reached when the `api`'s
+  `OLLAMA_HOST` is pointed at it, or when used directly via
+  `docker compose exec`. Acts as proxy to Ollama Cloud for `:cloud`
+  model tags, or as a local inference server for non-cloud models.
+  CPU-only (no GPU device requests). `OLLAMA_MODELS=/models` redirects
+  local model storage to a named Docker volume.
+  `OLLAMA_KEEP_ALIVE=1h` only matters for local models. Healthcheck
+  uses `ollama list`. Cloud auth via ed25519 keypair: `id_ed25519` and
+  `id_ed25519.pub` bind-mounted into `/root/.ollama/`. The public key
+  must be registered at <https://ollama.com/settings/keys>.
+- **`ollama-pull`** *(off the default path)* — pre-registers the
+  configured models on the local Ollama at `compose up`. Uses
+  `curlimages/curl` and calls Ollama's HTTP `/api/pull` endpoint
+  **deliberately, not the `ollama` CLI** (see gotcha below). Only
+  meaningful when local Ollama is in use. `restart: "no"` so it
+  doesn't loop after success.
+
+All services share a custom network named `ollama` (the user preferred
+this over a generic `internal` name).
 
 ## Models pre-pulled
 
-`qwen3.5:397b-cloud` and `gemma4:31b-cloud`. The `:cloud` suffix routes
-inference to Ollama Cloud rather than running it locally. The user
-confirmed these names manually and asked me to trust them — do not
-second-guess or substitute. If they ever fail to pull or authenticate,
-surface the error and ask for confirmation rather than swap to a
-different tag.
+`qwen3.5:397b-cloud` and `gemma4:31b-cloud` are registered on the local
+Ollama by `ollama-pull`. Only relevant when the local Ollama is in use;
+they're a no-op in the default cloud-direct path. The user confirmed
+these names manually — do not second-guess or substitute. If they ever
+fail to pull or authenticate, surface the error and ask for
+confirmation rather than swap to a different tag.
 
 ## Ollama Cloud authentication
 
-Ollama Cloud uses ed25519 keypair authentication. The `ollama` binary
-expects the keypair at `~/.ollama/id_ed25519` (private) and
-`~/.ollama/id_ed25519.pub` (public); inside the container that's
-`/root/.ollama/`.
+There are two authentication paths to Ollama Cloud, used by different
+services:
 
-Setup flow:
+- **`api` service → Ollama Cloud (default).** Uses an account-bound
+  **API key** passed as `Authorization: Bearer <key>` by the `ollama`
+  Python SDK. The key is read from `OLLAMA_API_KEY` in `env_ollama`.
+  This is the simpler, headless mechanism — no SSH-key management on
+  the deployment host.
+- **Local `ollama` service → Ollama Cloud (only when api routes
+  through it, or for direct `compose exec` smoke tests).** Uses
+  **ed25519 keypair** auth: `id_ed25519` / `id_ed25519.pub` bind-mounted
+  into the container's `/root/.ollama/`. The public half must be
+  registered at <https://ollama.com/settings/keys>.
 
-1. Run `./generate-keys.sh` from the `ai/` directory on the deployment
-   host. It writes `id_ed25519` / `id_ed25519.pub` into the current
-   directory and prints the public key.
-2. Register the public key at <https://ollama.com/settings/keys>. This
-   step is what associates the keypair with the user's Ollama account
-   and authorizes it for cloud calls. Without it, mounting the private
-   key into the container does nothing useful — the server has a key
-   but ollama.com has never seen it.
-3. Bring the stack up. The keys are bind-mounted into the `ollama`
-   container at `/root/.ollama/`.
+Both API keys and SSH keys are issued from
+<https://ollama.com/settings/keys>. They're separate credentials —
+having one doesn't grant the other.
 
-Both files are gitignored. They are deployment-host artefacts, not
-source. Generating fresh keys means re-registering the public key on
-ollama.com.
+`env_ollama`, `id_ed25519`, and `id_ed25519.pub` are all gitignored.
+They're deployment-host artefacts, not source.
+
+## Ollama endpoint switch
+
+`OLLAMA_HOST` in `env_ollama` selects which Ollama the `api` calls:
+
+- `https://ollama.com` (default) — direct cloud, requires
+  `OLLAMA_API_KEY`. Server CPU/RAM/disk usage near-zero per request.
+- `http://ollama:11434` — routes through the local Ollama service in
+  the same docker network. The local Ollama's own auth (ed25519)
+  determines whether *it* can then reach cloud, or whether it serves a
+  local model from the `models` volume.
+
+`env_ollama.example` ships both options as commented entries so the
+choice is explicit. The default keeps the local Ollama optional in
+practice even though it starts with the stack.
 
 ## Cloudflare configuration (dashboard locations)
 
@@ -167,18 +216,18 @@ There is no database, no session storage, nothing in `/var/lib`. The only
 on-disk state is:
 
 - The `models` volume — local model weights for any non-cloud models
-  (currently empty in the pre-pulled set; cloud models leave nothing
-  here).
-- `id_ed25519` / `id_ed25519.pub` — the ed25519 keypair for Ollama Cloud
-  auth. A credential, not session state, but it's host-local and not in
-  source.
+  (cloud models leave nothing here).
+- Host-local credential files (`env_tunnel`, `env_ollama`,
+  `id_ed25519`, `id_ed25519.pub`). Configuration, not session state, but
+  not in source either.
 
-Both can be wiped (`docker compose down --volumes` and `rm id_ed25519*`)
-and re-created without external coordination — though regenerating the
-keypair requires re-registering the public key with the Ollama account.
-Per-session storage (chat history, retrieval indexes, etc.) on the
-backend is a non-goal; if a future change wants to introduce it, that
-should be flagged and discussed rather than silently added.
+The volume can be wiped (`docker compose down --volumes`) and the
+credentials regenerated without external coordination — though
+regenerating ed25519 keys requires re-registering the public half on
+ollama.com, and rotating `OLLAMA_API_KEY` requires issuing a new key
+there. Per-session storage (chat history, retrieval indexes, etc.) on
+the backend is a non-goal; if a future change wants to introduce it,
+that should be flagged and discussed rather than silently added.
 
 ## Rejected alternatives
 

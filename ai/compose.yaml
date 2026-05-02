@@ -8,12 +8,10 @@ services:
     restart: unless-stopped
     networks: [ollama]
 
-  testserver:
-    image: python:3.14-slim
-    command: python3 -m http.server 8080 --directory /app
-    volumes:
-      - ./testserver:/app:ro
-    expose: ["8080"]
+  api:
+    build: ./api
+    env_file: env_ollama
+    expose: ["8000"]
     restart: unless-stopped
     networks: [ollama]
 
