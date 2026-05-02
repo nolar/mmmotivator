@@ -24,6 +24,8 @@ services:
       - OLLAMA_KEEP_ALIVE=1h
     volumes:
       - models:/models
+      - ./id_ed25519:/root/.ollama/id_ed25519:ro
+      - ./id_ed25519.pub:/root/.ollama/id_ed25519.pub:ro
     expose: ["11434"]
     restart: unless-stopped
     networks: [ollama]
@@ -42,14 +44,14 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command: |
       set -e
-      echo "Pulling qwen3.5:2b..."
+      echo "Pulling qwen3.5:397b-cloud..."
       curl -fsS -N -X POST http://ollama:11434/api/pull \
         -H 'Content-Type: application/json' \
-        -d '{"model":"qwen3.5:2b"}' | tee /dev/stderr | grep -q '"status":"success"'
-      echo "Pulling gemma4:e4b..."
+        -d '{"model":"qwen3.5:397b-cloud"}' | tee /dev/stderr | grep -q '"status":"success"'
+      echo "Pulling gemma4:31b-cloud..."
       curl -fsS -N -X POST http://ollama:11434/api/pull \
         -H 'Content-Type: application/json' \
-        -d '{"model":"gemma4:e4b"}' | tee /dev/stderr | grep -q '"status":"success"'
+        -d '{"model":"gemma4:31b-cloud"}' | tee /dev/stderr | grep -q '"status":"success"'
       echo "All models pulled."
     restart: "no"
     networks: [ollama]

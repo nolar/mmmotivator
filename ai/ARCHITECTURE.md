@@ -6,22 +6,37 @@ constraints that shaped the design — things that won't be obvious from
 
 ## Purpose
 
-Give the app server-side access to LLM inference without:
+Give the app server-side access to LLM inference with:
 
-- Sending prompt content to a third-party API (privacy).
-- Paying per-token fees (cost).
-- Exposing the inference server to the public internet (attack surface).
+- The inference origin hidden (no public DNS record, no inbound ports).
+- App-only authentication (only the app holds the credentials needed to
+  reach the backend through Cloudflare's edge).
+- Cost predictability — flat-rate cloud inference instead of metered
+  per-token API fees, when using `:cloud` tagged models.
 
 The app calls the backend from its server-side runtime only; the browser
 never speaks to the backend directly. The two CF Access service-token
 secrets live as server-side environment variables in the app's hosting
 platform.
 
+**Privacy boundary**: with `:cloud` model tags (the current default),
+inference runs on Ollama Cloud, so prompt content is visible to Cloudflare
+*and* Ollama. Earlier iterations of the design assumed local-only
+inference and avoided third-party API exposure; the cloud-model decision
+trades that property away in exchange for not needing GPU hardware on the
+server. Local-only inference is still possible — just use models without
+the `:cloud` suffix.
+
 ## Architecture
 
 ```
-App (server side) ──HTTPS──▶ Cloudflare edge (Access) ──tunnel──▶ cloudflared ──HTTP──▶ ollama:11434
+App (server side) ──HTTPS──▶ Cloudflare edge (Access) ──tunnel──▶ cloudflared ──HTTP──▶ ollama:11434 ──▶ Ollama Cloud
+                                                                                                ↑
+                                                                              ed25519 keypair (signs cloud auth)
 ```
+
+For non-cloud models, the last hop is local: Ollama serves inference from
+the `models` volume on the same host, no external traffic.
 
 - The server host has **no inbound ports open** and **no public DNS
   record** pointing at it. Only `cloudflared` keeps an outbound persistent
@@ -45,19 +60,26 @@ of whichever directory `docker compose` is invoked from).
 - **`cloudflared`** — `cloudflare/cloudflared:latest`. Outbound-only
   tunnel daemon. Reads `TUNNEL_TOKEN` from `env_tunnel` via `env_file:`
   (deliberately explicit; project-level `.env` auto-loading is not used).
-- **`ollama`** — `ollama/ollama:latest`. CPU-only inference (no GPU
-  device requests anywhere). `OLLAMA_MODELS=/models` redirects model
-  storage to a named Docker volume so models survive restarts.
-  `OLLAMA_KEEP_ALIVE=1h` keeps the most-recently-used model loaded for
-  an hour to avoid reload latency on subsequent calls. Healthcheck uses
-  `ollama list` because that's a lightweight roundtrip to the local
-  server. The official image binds to `0.0.0.0:11434` by default — no
-  `OLLAMA_HOST` override needed on the server itself.
-- **`ollama-pull`** — pre-pulls preferred models on `compose up`. Uses
-  the `curlimages/curl` image and calls Ollama's HTTP `/api/pull`
+- **`ollama`** — `ollama/ollama:latest`. Acts as the authenticated
+  proxy to Ollama Cloud for `:cloud` model tags, and as a local
+  inference server for any non-cloud models. CPU-only (no GPU device
+  requests). `OLLAMA_MODELS=/models` redirects local model storage to a
+  named Docker volume. `OLLAMA_KEEP_ALIVE=1h` only matters for local
+  models. Healthcheck uses `ollama list` (lightweight roundtrip to the
+  local server). The image binds to `0.0.0.0:11434` by default — no
+  `OLLAMA_HOST` override needed.
+  
+  Ollama Cloud authentication: `id_ed25519` and `id_ed25519.pub` are
+  bind-mounted read-only into `/root/.ollama/` from the working
+  directory. Ollama uses the private key to sign requests to
+  ollama.com; the public key must be registered at
+  <https://ollama.com/settings/keys> for the auth to succeed.
+- **`ollama-pull`** — pre-registers configured models on `compose up`.
+  Uses the `curlimages/curl` image and calls Ollama's HTTP `/api/pull`
   endpoint **deliberately, not the `ollama` CLI** (see gotcha below).
-  Depends on `ollama` being healthy. `restart: "no"` so it doesn't loop
-  after success.
+  For cloud models the operation is essentially a metadata sync; for
+  local models it's a real download. Depends on `ollama` being healthy.
+  `restart: "no"` so it doesn't loop after success.
 - **`testserver`** — `python:3.14-slim` with an inline
   `python3 -m http.server` command serving `./testserver/`. Returns
   `Hello` for `/`. Used to verify the tunnel + Access setup without
@@ -69,10 +91,36 @@ preferred this over a generic `internal` name).
 
 ## Models pre-pulled
 
-`qwen3.5:2b` and `gemma4:e4b`. The user confirmed these names manually
-and asked me to trust them — do not second-guess or substitute. If they
-ever fail to pull, surface the error and ask for confirmation rather
-than swap to a different tag.
+`qwen3.5:397b-cloud` and `gemma4:31b-cloud`. The `:cloud` suffix routes
+inference to Ollama Cloud rather than running it locally. The user
+confirmed these names manually and asked me to trust them — do not
+second-guess or substitute. If they ever fail to pull or authenticate,
+surface the error and ask for confirmation rather than swap to a
+different tag.
+
+## Ollama Cloud authentication
+
+Ollama Cloud uses ed25519 keypair authentication. The `ollama` binary
+expects the keypair at `~/.ollama/id_ed25519` (private) and
+`~/.ollama/id_ed25519.pub` (public); inside the container that's
+`/root/.ollama/`.
+
+Setup flow:
+
+1. Run `./generate-keys.sh` from the `ai/` directory on the deployment
+   host. It writes `id_ed25519` / `id_ed25519.pub` into the current
+   directory and prints the public key.
+2. Register the public key at <https://ollama.com/settings/keys>. This
+   step is what associates the keypair with the user's Ollama account
+   and authorizes it for cloud calls. Without it, mounting the private
+   key into the container does nothing useful — the server has a key
+   but ollama.com has never seen it.
+3. Bring the stack up. The keys are bind-mounted into the `ollama`
+   container at `/root/.ollama/`.
+
+Both files are gitignored. They are deployment-host artefacts, not
+source. Generating fresh keys means re-registering the public key on
+ollama.com.
 
 ## Cloudflare configuration (dashboard locations)
 
@@ -115,13 +163,22 @@ elsewhere") is Enterprise-only. The two viable free-tier paths are:
 
 ### Stateless backend, models the only persisted state
 
-The README intro states this explicitly. There is no database, no session
-storage, nothing in `/var/lib`. The `models` volume is the single piece
-of stateful disk; it can be wiped (`docker compose down --volumes`) and
-re-populated by `ollama-pull` without external coordination. This is a
-non-negotiable design property — if a future change introduces
-per-session storage on the backend, it should be flagged and discussed
-rather than silently added.
+There is no database, no session storage, nothing in `/var/lib`. The only
+on-disk state is:
+
+- The `models` volume — local model weights for any non-cloud models
+  (currently empty in the pre-pulled set; cloud models leave nothing
+  here).
+- `id_ed25519` / `id_ed25519.pub` — the ed25519 keypair for Ollama Cloud
+  auth. A credential, not session state, but it's host-local and not in
+  source.
+
+Both can be wiped (`docker compose down --volumes` and `rm id_ed25519*`)
+and re-created without external coordination — though regenerating the
+keypair requires re-registering the public key with the Ollama account.
+Per-session storage (chat history, retrieval indexes, etc.) on the
+backend is a non-goal; if a future change wants to introduce it, that
+should be flagged and discussed rather than silently added.
 
 ## Rejected alternatives
 
@@ -180,6 +237,22 @@ Bearer headers are dramatically simpler to operate than mTLS (CA + client
 cert + rotation in env vars), and roughly equivalent in security at this
 scale. mTLS would only be worth the operational cost if the threat model
 required Cloudflare *not* to be a trust anchor.
+
+### Local CPU inference on small models
+
+Earlier iterations pre-pulled small local models (`qwen3.5:2b`,
+`gemma4:e4b`) and ran inference on the host CPU. Rejected for the
+default flow because practical performance was unusable —
+approximately **one minute per token** on the available hardware — and
+each loaded model occupied roughly its file size in RAM, pressuring the
+box's working memory under any concurrent use. Bigger local models
+would be faster per-parameter but don't fit at all without GPU.
+
+Local inference is still *supported* by the stack (the `models` volume
+and the local `ollama` service handle it). It just isn't the default
+because the small models that fit don't perform, and the ones that
+perform don't fit. Cloud routing is the only path to usable latency on
+a CPU-only host.
 
 ### AWS NPU instance families (Inferentia, Trainium)
 

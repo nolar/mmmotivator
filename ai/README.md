@@ -5,9 +5,14 @@ Cloudflare Tunnel with service-token authentication. The host has no inbound
 ports open and no public DNS record — only an outbound connection to
 Cloudflare.
 
-The backend is stateless: nothing is persisted between requests. The only
-on-disk state is the cache of downloaded models, kept in a Docker volume so
-they survive restarts and don't need to be re-pulled.
+Inference for the pre-configured models runs on **Ollama Cloud**; the local
+Ollama acts as an authenticated proxy that holds the cloud credentials and
+is reachable only through the tunnel. Local-model inference is also
+supported if you add non-`:cloud` models later.
+
+The local backend is stateless: nothing is persisted between requests. The
+only on-disk state is the cache of any locally-stored models (Docker
+volume) and the ed25519 keypair used for Ollama Cloud authentication.
 
 ## Architecture
 
@@ -19,10 +24,11 @@ App (server side) ──HTTPS──▶ Cloudflare edge (Access) ──tunnel─�
 
 - `cloudflared` — outbound-only connection to Cloudflare; routes incoming
   tunnel requests to the right internal service.
-- `ollama` — LLM inference server, CPU-only. Models live in the `models`
-  volume and survive restarts.
-- `ollama-pull` — one-shot job that pulls preferred models on stack startup.
-  Re-runs are no-ops if the models are already cached.
+- `ollama` — Ollama instance configured with the cloud credentials,
+  acting as an authenticated proxy to Ollama Cloud. Any locally-stored
+  models live in the `models` volume.
+- `ollama-pull` — one-shot job that registers the configured models at
+  startup. Re-runs are no-ops once the models are known.
 - `testserver` — plain HTTP server returning `Hello`, for debugging the
   tunnel without involving Ollama.
 
@@ -89,6 +95,19 @@ chmod 600 env_tunnel
 
 Edit `env_tunnel` and set `TUNNEL_TOKEN` to the value from the Cloudflare dashboard.
 
+Generate the Ollama Cloud keypair:
+
+```bash
+./generate-keys.sh
+```
+
+The script writes `id_ed25519` and `id_ed25519.pub` into the current
+directory (both gitignored). Copy the printed public key and register it at
+<https://ollama.com/settings/keys> — without that, the private key is
+unrecognised and the cloud proxy will fail to authenticate. The private key
+is mounted read-only into the `ollama` container at
+`/root/.ollama/id_ed25519`.
+
 Start the stack:
 
 ```bash
@@ -122,6 +141,20 @@ curl -i https://ai.example.com/
 The negative test confirms Access is actually enforcing — without it, you
 might be looking at a bypass policy or a misconfigured application.
 
+Smoke-test each cloud model interactively (run on the server) to confirm
+Ollama Cloud auth is wired up correctly:
+
+```bash
+docker compose exec -it ollama ollama run qwen3.5:397b-cloud
+docker compose exec -it ollama ollama run gemma4:31b-cloud
+```
+
+Each command opens a chat REPL with the model. Type a prompt, see the
+reply. Exit with `/bye` or Ctrl-D. If you get an authentication error
+from Ollama (not from Cloudflare), check that the public key generated
+by `./generate-keys.sh` is registered at
+<https://ollama.com/settings/keys>.
+
 ## Updating
 
 ```bash
@@ -140,7 +173,7 @@ To free disk space or drop a model that's no longer needed, exec into the
 running `ollama` container and run `ollama rm`:
 
 ```bash
-docker compose exec ollama ollama rm qwen3.5:2b
+docker compose exec ollama ollama rm qwen3.5:397b-cloud
 ```
 
 The model is deleted from the `models` volume immediately. To stop it
@@ -163,20 +196,17 @@ recovering from a corrupted volume; not needed for routine restarts.
 
 ## Operational notes
 
-- **Model storage.** `models` is a named Docker volume; its contents persist
-  across `docker compose down`/`up`. Inspect with
-  `docker volume inspect mmmai_models`.
-- **Disk space.** Each model occupies a few GB on disk in its quantized
-  form. The two pre-pulled models together fit in roughly 5 GB; plan for
-  20–50 GB of headroom on the server if you expect to add more models
-  over time.
+- **Inference location.** With `:cloud` model tags, inference runs on
+  Ollama Cloud — the local Ollama is just an authenticated proxy. Server
+  CPU, RAM and disk usage stay near-zero regardless of request volume.
+  `OLLAMA_KEEP_ALIVE` is a no-op for cloud models. Both settings start
+  to matter again only if you add local-only models.
+- **Model storage.** `models` is a named Docker volume holding any
+  *locally* stored models; cloud models leave nothing on disk. Inspect
+  with `docker volume inspect mmmai_models`.
 - **Changing pre-pulled models.** Edit the `command:` of `ollama-pull` in
   `compose.yaml`, then `docker compose up -d ollama-pull`. The
   service runs once and exits.
-- **Memory.** CPU-only Ollama uses RAM, not VRAM. Each loaded model occupies
-  roughly its file size in memory. `OLLAMA_KEEP_ALIVE=1h` keeps the most
-  recently used model loaded for an hour after the last request to avoid
-  reload latency.
 - **Debugging the tunnel.** Switch the Cloudflare Published Application
   route URL to `testserver:8080`; a request from the app (or curl with the
   service-token headers) should return `Hello`. Switch back to
