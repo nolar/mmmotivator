@@ -10,34 +10,49 @@ configured in `env_llm` (default: Ollama Cloud). A local Ollama service
 is also included for when you want to run local models, or have a local
 Ollama proxy cloud calls — but it's not on the default path.
 
-The backend is stateless: nothing is persisted between requests. The
-only on-disk state is the cache of any locally-stored models (Docker
-volume) and, if the local Ollama is in use, its ed25519 keypair for
-cloud auth.
+Request count is tracked in Redis as rolling 24-hour sums and capped
+both globally (`MAX_REQUESTS_GLOBALLY_PER_DAY`, default 100) and per caller
+(`MAX_REQUESTS_PER_USER_PER_DAY`, default 50). The caller is identified
+by source IP today (always hashed before going to Redis). Over-cap
+calls are rejected with HTTP 429 before reaching the LLM.
+
+The on-disk state is just the Redis append-only file (in the
+`redis_data` volume), the cache of any locally-stored models (in the
+`models` volume), and — only if the local Ollama is in use — its
+ed25519 keypair for cloud auth.
 
 ## Architecture
 
 ```
-App (server side) ──HTTPS──▶ Cloudflare edge (Access) ──tunnel──▶ cloudflared ──HTTP──▶ api:8000 ──▶ Ollama Cloud
-                                                                                              │
-                                                                                              └─▶ ollama:11434 (optional)
+App (server side)
+   │ HTTPS
+   ▼
+Cloudflare edge (Access) ──tunnel──▶ cloudflared ──▶ api:8000 ──▶ Ollama Cloud
+                                                       │
+                                                       ├─▶ redis:6379 (rolling 24h counter)
+                                                       │
+                                                       └─▶ ollama:11434 (optional path)
 ```
 
 ## Services
 
-- `cloudflared` — outbound-only connection to Cloudflare; routes incoming
-  tunnel requests to the right internal service.
+- `cloudflared` — outbound-only connection to Cloudflare; routes
+  incoming tunnel requests to the right internal service.
 - `api` — FastAPI service handling the public endpoints. Calls any
-  OpenAI-compatible LLM provider (cloud Ollama by default, plus
-  examples for local Ollama, OpenAI, and Cloudflare Workers AI).
-  Configurable via `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `MODEL`.
+  OpenAI-compatible LLM provider (Ollama Cloud by default, plus
+  commented examples for local Ollama, OpenAI, and Cloudflare Workers
+  AI). Configurable via `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `MODEL`.
+  Enforces a rolling 24-hour request cap stored in Redis.
+- `redis` — Redis 7 with append-only file persistence. Holds the
+  hourly `/bio/` request buckets that the rolling-window cap reads
+  from, so the cap survives restarts.
 - `ollama` *(optional in concept)* — local Ollama instance. Useful for
   local-only models, or for letting a local Ollama proxy cloud calls
-  with its own ed25519 auth. Default deployments don't route through it,
-  but it starts with the rest of the stack.
-- `ollama-pull` *(optional in concept)* — one-shot job that registers the
-  configured models on the local Ollama at startup. Only relevant when
-  the `api` is pointed at the local Ollama, or for separate local
+  with its own ed25519 auth. Default deployments don't route through
+  it, but it starts with the rest of the stack.
+- `ollama-pull` *(optional in concept)* — one-shot job that registers
+  the configured models on the local Ollama at startup. Only relevant
+  when the `api` is pointed at the local Ollama, or for separate local
   testing. Harmless when unused.
 
 ## Cloudflare configuration (one-time, in the dashboard)
@@ -241,6 +256,39 @@ recovering from a corrupted volume; not needed for routine restarts.
   use.
 - **Choosing the bio model.** `MODEL` in `env_llm` overrides the model
   used by `/bio/`. Default is `gemma4:31b-cloud`.
+- **Hard cost caps (two layers, both rolling 24h).**
+  1. **Global** — `MAX_REQUESTS_GLOBALLY_PER_DAY` (default `100`). Summed
+     across hourly bucket keys `bio:count:<bucket>`, where
+     `<bucket>` is the unix timestamp of the bucket's starting
+     boundary (`floor(unix_time / 3600) * 3600`).
+  2. **Per-user** — `MAX_REQUESTS_PER_USER_PER_DAY` (default `50`).
+     Identifies the caller by source IP (CF-Connecting-IP from
+     Cloudflare's edge, falling back to X-Forwarded-For, then the
+     immediate sender). The identifier is **hashed** (BLAKE2b, 4
+     bytes / 8 hex chars) before going to Redis, so plaintext IPs
+     never appear in Redis dumps or scans. Bucket keys are
+     `bio:user:<hash>:<bucket>`.
+
+  Each request `INCR`s the current bucket of both counters and `MGET`s
+  the last 24 buckets of each to compute the rolling sums. Over-cap
+  requests get HTTP 429 before the LLM is touched. The per-user check
+  triggers first, then the global check. The window slides
+  continuously (no calendar reset). All bucket keys expire after 25
+  hours — old data is pruned automatically. Persists across restarts
+  (Redis AOF). **Redis-unreachable → fail closed**: the api returns
+  HTTP 503 and refuses to call the LLM. Without the counter we can't
+  bound spend, and an unbounded LLM bill is a worse failure than
+  temporary unavailability.
+- **Adjusting the caps.** Edit `MAX_REQUESTS_GLOBALLY_PER_DAY` and/or
+  `MAX_REQUESTS_PER_USER_PER_DAY` in `env_llm` on the server, then
+  `docker compose up -d api`.
+- **Inspecting the bucket keys.**
+  ```bash
+  # Global keys
+  docker compose exec redis redis-cli --scan --pattern 'bio:count:*'
+  # Per-user keys (one prefix per caller, hashed)
+  docker compose exec redis redis-cli --scan --pattern 'bio:user:*'
+  ```
 - **Input limits.** `/bio/` rejects bodies longer than 1024 characters
   with HTTP 413 before forwarding to Ollama, capping cost-per-request.
   Generation is also capped at ~2000 tokens.

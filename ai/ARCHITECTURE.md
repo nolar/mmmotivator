@@ -40,12 +40,19 @@ cloudflared on host
    │ HTTP (internal docker network)
    ▼
 api:8000 (FastAPI)
-   │ openai Python SDK (async, OpenAI-compatible API)
    │
+   ├─▶ redis:6379 — two rolling 24h counters sharded into hourly
+   │     buckets (INCR current, MGET 24 latest, SUM): a global one
+   │     (MAX_REQUESTS_GLOBALLY_PER_DAY) and a per-user one keyed by the hashed
+   │     caller identifier (MAX_REQUESTS_PER_USER_PER_DAY). Persists
+   │     via AOF in mmmai_redis_data.
+   │
+   │ openai Python SDK (async, OpenAI-compatible API)
+   ▼
    ├─▶ Ollama Cloud — default; OPENAI_BASE_URL=https://ollama.com/v1, OPENAI_API_KEY in env_llm
    │
-   ├─▶ OpenAI proper, Cloudflare Workers AI, or any other OpenAI-compat provider
-   │     (just edit env_llm; commented examples shipped)
+   ├─▶ OpenAI proper, Cloudflare Workers AI, or any other OpenAI-compat
+   │     provider (just edit env_llm; commented examples shipped)
    │
    └─▶ ollama:11434 (local) — when OPENAI_BASE_URL=http://ollama:11434/v1
             │
@@ -88,9 +95,46 @@ of whichever directory `docker compose` is invoked from).
   installs them with `uv sync --frozen --no-install-project` (no
   `requirements.txt`). All endpoints async; the upstream LLM call uses
   the official `openai` Python SDK's `AsyncOpenAI` against an
-  OpenAI-compatible endpoint, so the same code works with Ollama Cloud,
-  OpenAI proper, Cloudflare Workers AI, Groq, and other providers
-  exposing the same API. Endpoints:
+  OpenAI-compatible endpoint, so the same code works with Ollama
+  Cloud, OpenAI proper, Cloudflare Workers AI, Groq, and other
+  providers exposing the same API.
+
+  Quota enforcement: two rolling 24-hour sums, sharded across hourly
+  bucket keys. The bucket id is the unix timestamp of the bucket's
+  starting boundary —
+  `floor(unix_time / GRANULARITY_SECONDS) * GRANULARITY_SECONDS` —
+  with `GRANULARITY_SECONDS = 3600` (constants in `main.py`). The
+  bucket id format is human-readable when scanning Redis: each key
+  carries its own clock, and you can match a key to a wall-clock
+  hour by feeding the suffix to `date -u -d @<bucket>`.
+
+  - **Global**: keys `bio:count:<bucket>`, summed against
+    `MAX_REQUESTS_GLOBALLY_PER_DAY`.
+  - **Per-user**: keys `bio:user:<hash>:<bucket>`, summed against
+    `MAX_REQUESTS_PER_USER_PER_DAY`. The caller is identified by
+    `CF-Connecting-IP` (set by Cloudflare's edge), falling back to
+    `X-Forwarded-For` first hop, then the immediate sender. The
+    identifier is **hashed** (BLAKE2b, 4-byte / 8-hex-char digest)
+    before any Redis interaction — plaintext identifiers never reach
+    Redis. The
+    identifier extraction is isolated in
+    `_user_key_from_request()`, so swapping IP for an auth token or
+    account id later is a one-function change.
+
+  On each `/bio/` call the api `INCR`s both current buckets,
+  refreshes both TTLs to `KEY_TTL_SECONDS = 25h`, then `MGET`s the
+  most recent `WINDOW_BUCKETS = 24` keys for each window and sums
+  them. Per-user check fires first, then global. If either sum
+  exceeds its cap, returns HTTP 429 *without* hitting the LLM. The
+  window slides continuously — no calendar reset. The TTL is
+  intentionally a bit larger than the window so the oldest bucket
+  in any sum is still alive. **Redis-down → fail closed**: the api
+  returns HTTP 503 and refuses to invoke the LLM. The decision was
+  changed deliberately: an LLM bill leaked during a Redis outage is
+  worse than the api being temporarily unavailable, since the cap is
+  the only spend control on this path.
+
+  Endpoints:
   - `GET /` — returns `"Hello!"`. Doubles as the tunnel/Access health
     check from outside.
   - `POST /bio/` — accepts a raw text bio (≤ `MAX_INPUT_CHARS = 1024`),
@@ -108,6 +152,20 @@ of whichever directory `docker compose` is invoked from).
     Cloud, issued at <https://ollama.com/settings/keys>.
   - `MODEL` — model identifier (default `gemma4:31b-cloud`); the
     valid values depend on the configured provider.
+
+  `env_file: env_llm` also provides:
+  - `MAX_REQUESTS_GLOBALLY_PER_DAY` — global cap on `/bio/` calls across a
+    rolling 24-hour window (default `100`).
+  - `MAX_REQUESTS_PER_USER_PER_DAY` — per-caller cap across the same
+    window (default `50`). The caller identifier is hashed before
+    Redis sees it.
+
+  Treated as deployment artefacts like the LLM credentials so they
+  can be tuned per environment.
+
+  `compose.yaml` injects via `environment:` (internal docker network
+  config, not deployment-tunable):
+  - `REDIS_URL` — `redis://redis:6379` (the in-stack Redis service).
 - **`ollama`** *(off the default path)* — `ollama/ollama:latest`.
   Starts with the stack but is only reached when the `api`'s
   `api`'s `OPENAI_BASE_URL` is pointed at it, or when used directly
@@ -126,6 +184,13 @@ of whichever directory `docker compose` is invoked from).
   **deliberately, not the `ollama` CLI** (see gotcha below). Only
   meaningful when local Ollama is in use. `restart: "no"` so it
   doesn't loop after success.
+- **`redis`** — `redis:7-alpine` with append-only file persistence
+  (`--appendonly yes`). Holds the monthly `/bio/` request counter so
+  the cap survives container restarts. Exposed only on the docker
+  network (no host port). Persists in the `redis_data` named volume
+  (host path `mmmai_redis_data`). Healthcheck via `redis-cli ping`.
+  The api's `depends_on: redis: condition: service_healthy` ensures
+  the api doesn't start before Redis is ready.
 
 All services share a custom network named `ollama` (the user preferred
 this over a generic `internal` name).
@@ -228,22 +293,25 @@ elsewhere") is Enterprise-only. The two viable free-tier paths are:
 
 ### Stateless backend, models the only persisted state
 
-There is no database, no session storage, nothing in `/var/lib`. The only
-on-disk state is:
+There is no database in the session-state sense (no chat history, no
+retrieval index). On-disk state is limited to:
 
 - The `models` volume — local model weights for any non-cloud models
   (cloud models leave nothing here).
-- Host-local credential files (`env_tunnel`, `env_llm`,
-  `id_ed25519`, `id_ed25519.pub`). Configuration, not session state, but
-  not in source either.
+- The `redis_data` volume — Redis AOF holding the monthly request
+  counter. Wipe-able; loses the spent-quota record for the current
+  month, which just means the cap effectively resets early. No harm.
+- Host-local credential / config files (`env_tunnel`, `env_llm`,
+  `id_ed25519`, `id_ed25519.pub`). Not session state, not in source.
 
-The volume can be wiped (`docker compose down --volumes`) and the
+Volumes can be wiped (`docker compose down --volumes`) and the
 credentials regenerated without external coordination — though
 regenerating ed25519 keys requires re-registering the public half on
 ollama.com, and rotating `OPENAI_API_KEY` requires issuing a new key
-on the configured provider's dashboard. Per-session storage (chat history, retrieval indexes, etc.) on
-the backend is a non-goal; if a future change wants to introduce it,
-that should be flagged and discussed rather than silently added.
+on the configured provider's dashboard. Per-message session storage
+(chat history, retrieval indexes, etc.) on the backend is a non-goal;
+if a future change wants to introduce it, that should be flagged and
+discussed rather than silently added.
 
 ## Rejected alternatives
 

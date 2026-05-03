@@ -21,3 +21,13 @@ MODEL=gemma4:31b-cloud
 # OPENAI_BASE_URL=https://api.cloudflare.com/client/v4/accounts/<account_id>/ai/v1
 # OPENAI_API_KEY=<cloudflare_api_token>
 # MODEL=@cf/qwen/qwen2.5-coder-32b-instruct
+
+# Hard caps on /bio/ requests across a rolling 24-hour window. Enforced
+# in the api service via Redis-backed sums over hourly buckets;
+# over-cap requests get HTTP 429 before the LLM is touched.
+# - MAX_REQUESTS_GLOBALLY_PER_DAY: across all callers combined.
+# - MAX_REQUESTS_PER_USER_PER_DAY: per caller, identified by source IP
+#   today (the identifier may change later); always hashed before
+#   reaching Redis.
+MAX_REQUESTS_GLOBALLY_PER_DAY=100
+MAX_REQUESTS_PER_USER_PER_DAY=50

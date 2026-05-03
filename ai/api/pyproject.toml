@@ -8,4 +8,5 @@ dependencies = [
     "uvicorn[standard]",
     "openai",
     "pydantic",
+    "redis",
 ]

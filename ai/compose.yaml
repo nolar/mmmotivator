@@ -11,9 +11,28 @@ services:
   api:
     build: ./api
     env_file: env_llm
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
     expose: ["8000"]
     restart: unless-stopped
     networks: [ollama]
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    expose: ["6379"]
+    restart: unless-stopped
+    networks: [ollama]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   ollama:
     image: ollama/ollama:latest
@@ -56,6 +75,7 @@ services:
 
 volumes:
   models:
+  redis_data:
 
 networks:
   ollama:
