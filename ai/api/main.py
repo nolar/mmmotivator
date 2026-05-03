@@ -5,6 +5,7 @@ import os
 import time
 from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from typing import Any, cast
 
 from fastapi import FastAPI, HTTPException, Request
@@ -43,22 +44,39 @@ class LifePeriod(BaseModel):
 
 
 class BioResponse(BaseModel):
+    birthdate: str = Field(description="ISO date YYYY-MM-DD")
     periods: list[LifePeriod]
 
 
 BIO_SCHEMA = BioResponse.model_json_schema()
+_SCHEMA_JSON = json.dumps(BIO_SCHEMA, indent=2)
 
-SYSTEM_PROMPT = f"""You are a biographical analyst that extracts life periods from a brief biography.
+
+def build_system_prompt() -> str:
+    """Build the system prompt with today's date injected.
+
+    Computed per-request so a long-running api always reflects the current
+    UTC date. The date matters for any open-ended current life period
+    that should end at "today".
+    """
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
+    return f"""You are a biographical analyst that extracts a date of birth and life periods from a brief biography.
+
+Today's date is {today}. Use it for any open-ended current period whose end isn't stated.
 
 A "life period" is a continuous time span when the person was in a particular role, location, organization, or life stage (e.g., "Studied at MIT", "Lived in Berlin", "Worked at IBM").
 
 Output must conform exactly to this JSON Schema:
 
-{json.dumps(BIO_SCHEMA, indent=2)}
+{_SCHEMA_JSON}
 
-Rules:
+Top-level fields:
+- birthdate: ISO date YYYY-MM-DD. The subject's date of birth as stated in or inferred from the bio. If the bio gives only a year, use YYYY-01-01.
+- periods: list of life periods.
+
+Each period:
 - label: a single word, a noun — usually a company, university, or a significant life period (e.g., "Google", "MIT", "Childhood", "Marriage").
-- start, end: ISO date YYYY-MM-DD. If only the year is known, use YYYY-01-01 for start and YYYY-12-31 for end. For an open-ended current period, use today's date for end.
+- start, end: ISO date YYYY-MM-DD. If only the year is known, use YYYY-01-01 for start and YYYY-12-31 for end. For an open-ended current period, use the today's date given above for end.
 - color: optional Tailwind CSS background class such as "bg-rose-400", "bg-sky-500", "bg-emerald-400", "bg-amber-400", "bg-violet-400". Pick distinct colors per period.
 
 Output format — strict:
@@ -207,7 +225,7 @@ async def bio(request: Request) -> BioResponse:
         response = await client.chat.completions.create(
             model=MODEL,
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": build_system_prompt()},
                 {"role": "user", "content": text},
             ],
             response_format={"type": "json_object"},
