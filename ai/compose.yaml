@@ -1,0 +1,81 @@
+name: mmmai
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run
+    env_file: env_tunnel
+    restart: unless-stopped
+    networks: [ollama]
+
+  api:
+    build: ./api
+    env_file: env_llm
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    expose: ["8000"]
+    restart: unless-stopped
+    networks: [ollama]
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    expose: ["6379"]
+    restart: unless-stopped
+    networks: [ollama]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  ollama:
+    image: ollama/ollama:latest
+    environment:
+      - OLLAMA_MODELS=/models
+      - OLLAMA_KEEP_ALIVE=1h
+    volumes:
+      - models:/models
+      - ./id_ed25519:/root/.ollama/id_ed25519:ro
+      - ./id_ed25519.pub:/root/.ollama/id_ed25519.pub:ro
+    expose: ["11434"]
+    restart: unless-stopped
+    networks: [ollama]
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  ollama-pull:
+    image: curlimages/curl:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      set -e
+      echo "Pulling qwen3.5:397b-cloud..."
+      curl -fsS -N -X POST http://ollama:11434/api/pull \
+        -H 'Content-Type: application/json' \
+        -d '{"model":"qwen3.5:397b-cloud"}' | tee /dev/stderr | grep -q '"status":"success"'
+      echo "Pulling gemma4:31b-cloud..."
+      curl -fsS -N -X POST http://ollama:11434/api/pull \
+        -H 'Content-Type: application/json' \
+        -d '{"model":"gemma4:31b-cloud"}' | tee /dev/stderr | grep -q '"status":"success"'
+      echo "All models pulled."
+    restart: "no"
+    networks: [ollama]
+
+volumes:
+  models:
+  redis_data:
+
+networks:
+  ollama:

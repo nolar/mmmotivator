@@ -1,0 +1,29 @@
+[project]
+name = "mmmai-api"
+version = "0.1.0"
+description = "FastAPI front-door for the AI backend"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "openai",
+    "pydantic",
+    "redis",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "fakeredis",
+    "mypy",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
+
+[tool.mypy]
+strict = true
+files = ["main.py"]
+mypy_path = "."

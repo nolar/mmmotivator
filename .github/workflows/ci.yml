@@ -44,3 +44,23 @@ jobs:
         with:
           name: playwright-results
           path: test-results/
+
+  test-api:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai/api
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Install Python
+        run: uv python install 3.14
+      - name: Sync dependencies (frozen)
+        run: uv sync --frozen --group dev
+      - name: Type-check (mypy strict)
+        run: uv run mypy
+      - name: Run pytest
+        run: uv run pytest
