@@ -6,9 +6,10 @@ host has no inbound ports open and no public DNS record — only an
 outbound connection to Cloudflare.
 
 The API talks to its LLM provider via the OpenAI-compatible endpoint
-configured in `env_llm` (default: Ollama Cloud). A local Ollama service
-is also included for when you want to run local models, or have a local
-Ollama proxy cloud calls — but it's not on the default path.
+configured in `env_llm` (default: Cloudflare Workers AI through AI
+Gateway). A local Ollama service is also included for when you want to
+run local models, or have a local Ollama proxy cloud calls — but it's
+not on the default path.
 
 Request count is tracked in Redis as rolling 24-hour sums and capped
 both globally (`MAX_REQUESTS_GLOBALLY_PER_DAY`, default 100) and per caller
@@ -27,7 +28,7 @@ ed25519 keypair for cloud auth.
 App (server side)
    │ HTTPS
    ▼
-Cloudflare edge (Access) ──tunnel──▶ cloudflared ──▶ api:8000 ──▶ Ollama Cloud
+Cloudflare edge (Access) ──tunnel──▶ cloudflared ──▶ api:8000 ──▶ CF AI Gateway ──▶ Workers AI
                                                        │
                                                        ├─▶ redis:6379 (rolling 24h counter)
                                                        │
@@ -39,10 +40,11 @@ Cloudflare edge (Access) ──tunnel──▶ cloudflared ──▶ api:8000 �
 - `cloudflared` — outbound-only connection to Cloudflare; routes
   incoming tunnel requests to the right internal service.
 - `api` — FastAPI service handling the public endpoints. Calls any
-  OpenAI-compatible LLM provider (Ollama Cloud by default, plus
-  commented examples for local Ollama, OpenAI, and Cloudflare Workers
-  AI). Configurable via `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `MODEL`.
-  Enforces a rolling 24-hour request cap stored in Redis.
+  OpenAI-compatible LLM provider (Cloudflare Workers AI via Gateway by
+  default, plus commented examples for direct Workers AI, Ollama
+  Cloud, local Ollama, and OpenAI). Configurable via `OPENAI_BASE_URL`
+  / `OPENAI_API_KEY` / `MODEL`. Enforces global and per-user rolling
+  24-hour request caps stored in Redis.
 - `redis` — Redis 7 with append-only file persistence. Holds the
   hourly `/bio/` request buckets that the rolling-window cap reads
   from, so the cap survives restarts.
@@ -255,7 +257,11 @@ recovering from a corrupted volume; not needed for routine restarts.
   cloud models; it starts mattering only if local-only models are in
   use.
 - **Choosing the bio model.** `MODEL` in `env_llm` overrides the model
-  used by `/bio/`. Default is `gemma4:31b-cloud`.
+  used by `/bio/`. Default is `workers-ai/@cf/qwen/qwen3-30b-a3b-fp8`
+  on Cloudflare Workers AI via AI Gateway. The `workers-ai/` prefix
+  is required when going through the Gateway; calling Workers AI
+  directly (the alternative block in `env_llm.example`) takes the
+  bare `@cf/...` form.
 - **Hard cost caps (two layers, both rolling 24h).**
   1. **Global** — `MAX_REQUESTS_GLOBALLY_PER_DAY` (default `100`). Summed
      across hourly bucket keys `bio:count:<bucket>`, where

@@ -12,7 +12,7 @@ from redis import asyncio as redis_async
 
 logger = logging.getLogger("mmmai-api")
 
-MODEL = os.environ.get("MODEL", "gemma4:31b-cloud")
+MODEL = os.environ.get("MODEL", "workers-ai/@cf/qwen/qwen3-30b-a3b-fp8")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379")
 MAX_REQUESTS_GLOBALLY_PER_DAY = int(os.environ.get("MAX_REQUESTS_GLOBALLY_PER_DAY", "100"))
 MAX_REQUESTS_PER_USER_PER_DAY = int(os.environ.get("MAX_REQUESTS_PER_USER_PER_DAY", "50"))

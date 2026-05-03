@@ -49,10 +49,13 @@ api:8000 (FastAPI)
    │
    │ openai Python SDK (async, OpenAI-compatible API)
    ▼
-   ├─▶ Ollama Cloud — default; OPENAI_BASE_URL=https://ollama.com/v1, OPENAI_API_KEY in env_llm
+   ├─▶ CF AI Gateway — default; OPENAI_BASE_URL points at the gateway
+   │     URL; gateway forwards to Workers AI; rate limits, observability,
+   │     optional caching configured at the Gateway, not in the app.
    │
-   ├─▶ OpenAI proper, Cloudflare Workers AI, or any other OpenAI-compat
-   │     provider (just edit env_llm; commented examples shipped)
+   ├─▶ Workers AI directly, Ollama Cloud, OpenAI proper, or any other
+   │     OpenAI-compat provider (just edit env_llm; commented examples
+   │     shipped).
    │
    └─▶ ollama:11434 (local) — when OPENAI_BASE_URL=http://ollama:11434/v1
             │
@@ -95,8 +98,8 @@ of whichever directory `docker compose` is invoked from).
   installs them with `uv sync --frozen --no-install-project` (no
   `requirements.txt`). All endpoints async; the upstream LLM call uses
   the official `openai` Python SDK's `AsyncOpenAI` against an
-  OpenAI-compatible endpoint, so the same code works with Ollama
-  Cloud, OpenAI proper, Cloudflare Workers AI, Groq, and other
+  OpenAI-compatible endpoint, so the same code works with CF AI
+  Gateway, Workers AI, Ollama Cloud, OpenAI proper, Groq, and other
   providers exposing the same API.
 
   Quota enforcement: two rolling 24-hour sums, sharded across hourly
@@ -145,13 +148,17 @@ of whichever directory `docker compose` is invoked from).
     containment).
 
   `env_file: env_llm` injects (read directly by the OpenAI SDK):
-  - `OPENAI_BASE_URL` — provider endpoint, default
-    `https://ollama.com/v1`. Switch to any OpenAI-compatible provider
-    by changing this.
-  - `OPENAI_API_KEY` — bearer token for the chosen provider. For Ollama
-    Cloud, issued at <https://ollama.com/settings/keys>.
-  - `MODEL` — model identifier (default `gemma4:31b-cloud`); the
-    valid values depend on the configured provider.
+  - `OPENAI_BASE_URL` — provider endpoint. Default points at a CF AI
+    Gateway URL routed to Workers AI; commented blocks in
+    `env_llm.example` show direct Workers AI, Ollama Cloud, local
+    Ollama, and OpenAI alternatives.
+  - `OPENAI_API_KEY` — bearer token for the chosen provider. For CF
+    Workers AI / Gateway, a CF API token with the "Workers AI"
+    permission.
+  - `MODEL` — model identifier (default
+    `workers-ai/@cf/qwen/qwen3-30b-a3b-fp8` for the Gateway path;
+    drop the `workers-ai/` prefix when calling Workers AI directly).
+    Valid values depend on the configured provider.
 
   `env_file: env_llm` also provides:
   - `MAX_REQUESTS_GLOBALLY_PER_DAY` — global cap on `/bio/` calls across a
@@ -236,18 +243,29 @@ upstream the `api` calls. Anything that exposes an OpenAI-compatible
 chat-completions endpoint will work; the same code path covers all of
 them.
 
-`env_llm.example` ships commented configuration blocks for:
+`env_llm.example` ships configuration blocks for:
 
-- **Ollama Cloud** (default) — `https://ollama.com/v1`, account-bound
-  API key, models like `gemma4:31b-cloud` or `qwen3.5:397b-cloud`.
+- **CF Workers AI via AI Gateway** (default) — gateway URL
+  `https://gateway.ai.cloudflare.com/v1/<account_id>/<gateway_id>/workers-ai/v1`,
+  Cloudflare API token, models like
+  `workers-ai/@cf/qwen/qwen3-30b-a3b-fp8`. The `workers-ai/` prefix
+  is how the Gateway's compat endpoint identifies the upstream
+  provider. The Gateway adds rate-limit caps, per-request
+  observability, and optional response caching, configured at the
+  Gateway itself rather than in the app.
+- **CF Workers AI direct** (no Gateway) — account-scoped URL
+  `https://api.cloudflare.com/client/v4/accounts/<account_id>/ai/v1`,
+  same model catalog but **without the `workers-ai/` prefix** on the
+  model id (e.g. `@cf/qwen/qwen3-30b-a3b-fp8`). Skips the
+  Gateway-side features.
+- **Ollama Cloud** — `https://ollama.com/v1`, account-bound
+  API key, huge models like `gemma4:31b-cloud` or
+  `qwen3.5:397b-cloud`. Not supported by AI Gateway.
 - **Local Ollama** in this stack — `http://ollama:11434/v1`, any
-  non-empty `OPENAI_API_KEY` (the SDK rejects an empty one). The local
-  Ollama's own auth (ed25519) governs *its* upstream calls.
+  non-empty `OPENAI_API_KEY` (the SDK rejects an empty one). The
+  local Ollama's own auth (ed25519) governs *its* upstream calls.
 - **OpenAI proper** — `https://api.openai.com/v1`, `sk-...` key,
   models like `gpt-4o-mini`.
-- **Cloudflare Workers AI** — account-scoped URL,
-  `https://api.cloudflare.com/client/v4/accounts/<account_id>/ai/v1`,
-  Cloudflare API token, models like `@cf/qwen/...`.
 
 Switching providers is "edit `env_llm`, restart the api container".
 No code change required.

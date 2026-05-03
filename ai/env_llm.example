@@ -2,25 +2,38 @@
 # SDK directly (OPENAI_BASE_URL, OPENAI_API_KEY). Works with any provider
 # that exposes an OpenAI-compatible API.
 
-# Default: Ollama Cloud
-OPENAI_BASE_URL=https://ollama.com/v1
-OPENAI_API_KEY=
-MODEL=gemma4:31b-cloud
+# Default: Cloudflare Workers AI via AI Gateway. The Gateway adds
+# rate-limit caps (configured in its Settings tab), per-request
+# observability, and optional response caching. Create the gateway at
+# CF dashboard → AI → AI Gateway. Replace <account_id> and <gateway_id>.
+OPENAI_BASE_URL=https://gateway.ai.cloudflare.com/v1/<account_id>/<gateway_id>/workers-ai/v1
+OPENAI_API_KEY=<cloudflare_api_token>
+# Note the workers-ai/ prefix on the model name when going through the
+# Gateway — it's how the Gateway's compat endpoint identifies the
+# upstream provider.
+MODEL=workers-ai/@cf/qwen/qwen3-30b-a3b-fp8
 
-# Alternative: local Ollama service in this stack
+# Alternative: Cloudflare Workers AI direct (no Gateway). Cheaper to set
+# up but no rate-limit cap, observability, or caching. The direct
+# endpoint takes the bare model id without the workers-ai/ prefix.
+# OPENAI_BASE_URL=https://api.cloudflare.com/client/v4/accounts/<account_id>/ai/v1
+# OPENAI_API_KEY=<cloudflare_api_token>
+# MODEL=@cf/qwen/qwen3-30b-a3b-fp8
+
+# Alternative: Ollama Cloud (huge models like 397B; no AI Gateway support).
+# OPENAI_BASE_URL=https://ollama.com/v1
+# OPENAI_API_KEY=<ollama_api_key>
+# MODEL=gemma4:31b-cloud
+
+# Alternative: local Ollama service in this stack.
 # OPENAI_BASE_URL=http://ollama:11434/v1
 # OPENAI_API_KEY=ollama
 # MODEL=gemma4:31b-cloud
 
-# Alternative: OpenAI proper
+# Alternative: OpenAI proper.
 # OPENAI_BASE_URL=https://api.openai.com/v1
 # OPENAI_API_KEY=sk-...
 # MODEL=gpt-4o-mini
-
-# Alternative: Cloudflare Workers AI (replace <account_id>)
-# OPENAI_BASE_URL=https://api.cloudflare.com/client/v4/accounts/<account_id>/ai/v1
-# OPENAI_API_KEY=<cloudflare_api_token>
-# MODEL=@cf/qwen/qwen2.5-coder-32b-instruct
 
 # Hard caps on /bio/ requests across a rolling 24-hour window. Enforced
 # in the api service via Redis-backed sums over hourly buckets;

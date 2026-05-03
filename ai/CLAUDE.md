@@ -8,6 +8,13 @@ context needed to continue working on this stack, read
 configuration, deployment, maintenance). Read it for the externally
 visible behavior; read `ARCHITECTURE.md` for the *why*.
 
+`COSTS.md` has snapshot estimates of inference costs across providers
+(Cloudflare Workers AI, OpenAI, Anthropic) sized to the `/bio/`
+workload. Refer to it when deciding which provider to point `env_llm`
+at, or when proposing a model change. Re-validate prices from each
+provider before relying on absolute numbers — the relative ordering is
+more durable than the figures.
+
 ## Coding conventions
 
 - **Logging format**: always use f-strings with `{value!r}` for
