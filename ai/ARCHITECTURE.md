@@ -9,15 +9,18 @@ constraints that shaped the design — things that won't be obvious from
 Give the app server-side access to LLM inference with:
 
 - The inference origin hidden (no public DNS record, no inbound ports).
-- App-only authentication (only the app holds the credentials needed to
-  reach the backend through Cloudflare's edge).
+- Cost bounded by application-level rate limits (per-IP and global) and
+  by Cloudflare AI Gateway's edge-side rate limit, even though the
+  endpoint itself is publicly callable.
 - Cost predictability — flat-rate cloud inference instead of metered
   per-token API fees, when using `:cloud` tagged models.
 
-The app calls the backend from its server-side runtime only; the browser
-never speaks to the backend directly. The two CF Access service-token
-secrets live as server-side environment variables in the app's hosting
-platform.
+The app calls the backend directly from the browser (frontend-direct).
+There is **no Cloudflare Access policy** in front of the public
+hostname: a service-token check there would require putting the secret
+in client-side code, where it can't actually stay secret. Authentication
+on the endpoint is therefore intentionally absent; the protection model
+is "hidden origin + bounded cost via rate limits."
 
 **Privacy boundary**: with `:cloud` model tags (the current default),
 inference runs on Ollama Cloud, so prompt content is visible to Cloudflare
@@ -30,10 +33,10 @@ the `:cloud` suffix.
 ## Architecture
 
 ```
-App (server side)
+App (browser, frontend-direct)
    │ HTTPS
    ▼
-Cloudflare edge (Access enforces service-token auth, HTTP 403 on missing tokens)
+Cloudflare edge (publicly reachable; no Access policy)
    │ tunnel
    ▼
 cloudflared on host
@@ -73,9 +76,12 @@ Ollama (or when used directly for ad-hoc smoke testing via
 - The server host has **no inbound ports open** and **no public DNS
   record** pointing at it. Only `cloudflared` keeps an outbound persistent
   connection to Cloudflare.
-- Auth is enforced at Cloudflare's edge: requests without a valid
-  `CF-Access-Client-Id` / `CF-Access-Client-Secret` pair are rejected with
-  HTTP 403 before reaching the tunnel.
+- The public tunnel hostname is reachable by anyone who finds it —
+  there is no Access policy. Cost is bounded by `api`'s rate limits
+  (per-IP and global, both rolling 24h, fail-closed on Redis outage)
+  and by AI Gateway's edge-side rate limit. A scanner finding the URL
+  can call it up to the per-IP cap; the global cap backstops broader
+  abuse.
 - TLS is terminated at Cloudflare. **Cloudflare can technically read
   prompts and responses on its edge** — this trade-off was accepted in
   exchange for CF's hidden-origin / DDoS-absorption / cert-management
@@ -277,20 +283,15 @@ session) are:
 
 - Tunnel creation: **Cloudflare dashboard → Networking → Tunnels**.
   *Not* under Zero Trust anymore.
-- Service tokens: **Zero Trust → Access controls → Service credentials**.
-- Applications: **Zero Trust → Access controls → Applications**.
-- Policies (also viewable separately): **Zero Trust → Access controls →
-  Policies**.
 
 The route type to expose a tunnel publicly is **Published Application**
 (was previously called "Public Hostname"). The other route options
 (Private Hostname, Private CIDR, Workers VPC) are for WARP / Cloudflare
-Workers and not applicable when the consumer is a Vercel-style serverless
-function.
+Workers and don't apply here.
 
-The Access policy on the application uses **action: Service Auth** with
-**Include → Service Token → \<the token\>**. The "Allow" action is the
-wrong choice and a common foot-gun — it will let everyone through.
+No Access application or service-token policy is configured in this
+design — the published hostname is intentionally open and protected by
+in-app rate limits instead. See the Architecture section for why.
 
 ## Key design decisions
 
@@ -456,26 +457,32 @@ realizing it nukes downloaded models.
 
 - `ai/compose.yaml` — the stack definition. Modern name (was renamed
   from `docker-compose.yml`).
-- `ai/env_tunnel` — `.gitignore`'d; holds `TUNNEL_TOKEN` on the server
-  only. Mode 0600.
-- `ai/env_tunnel.example` — committed template, value blank.
-- `ai/.gitignore` — only excludes `env_tunnel`.
-- `ai/testserver/index.html` — single-line `Hello`.
+- `ai/api/` — FastAPI service source: `Dockerfile`, `pyproject.toml`,
+  checked-in `uv.lock`, `main.py`.
+- `ai/env_tunnel` / `ai/env_llm` — `.gitignore`'d; hold the tunnel
+  token and LLM credentials respectively, mode 0600 on the server.
+- `ai/env_tunnel.example` / `ai/env_llm.example` — committed
+  templates with blank/placeholder values and commented alternatives.
+- `ai/.gitignore` — excludes the env files, ed25519 keys, and Python
+  build artefacts.
 - `ai/README.md` — operator-facing manual: Cloudflare configuration
   steps, server deployment, maintenance procedures, end-to-end smoke
   test commands.
+- `ai/COSTS.md` — snapshot of inference cost estimates across
+  providers, sized to the `/bio/` workload.
 
 The repo is at `https://github.com/nolar/mmmotivator.git`. The branch
 holding this work was `ai`.
 
 ## Pending / not done
 
-- **App-side wiring is not implemented.** The React app at the repo root
-  doesn't yet call the backend. When implementing: the call must be
-  server-side only (never from the browser); the two service-token
-  values must be Sensitive env vars in the app's hosting environment
-  (`CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET`); the URL is
-  whatever Cloudflare hostname is configured for the tunnel route.
+- **App-side wiring is not implemented.** The React app at the repo
+  root doesn't yet call the backend. The architecture is
+  frontend-direct: the browser calls the public tunnel hostname
+  itself, with no auth headers — endpoint protection is in `api`'s
+  rate limits, not in any client-side credential. The URL is whatever
+  hostname is configured for the tunnel route. Handle 429 (over cap)
+  and 503 (Redis unavailable) gracefully in the UI.
 
 ## User preferences observed during setup
 

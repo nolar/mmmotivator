@@ -1,9 +1,11 @@
 # AI Backend
 
 A FastAPI front-door (`api`) running on a private server, exposed to the
-app through a Cloudflare Tunnel with service-token authentication. The
-host has no inbound ports open and no public DNS record — only an
-outbound connection to Cloudflare.
+app through a Cloudflare Tunnel. The host has no inbound ports open and
+no public DNS record — only an outbound connection to Cloudflare. The
+tunnel hostname itself is publicly reachable; access control on the
+endpoint is enforced inside `api` (rate limits, input validation),
+not at Cloudflare's edge.
 
 The API talks to its LLM provider via the OpenAI-compatible endpoint
 configured in `env_llm` (default: Cloudflare Workers AI through AI
@@ -25,14 +27,14 @@ ed25519 keypair for cloud auth.
 ## Architecture
 
 ```
-App (server side)
+App
    │ HTTPS
    ▼
-Cloudflare edge (Access) ──tunnel──▶ cloudflared ──▶ api:8000 ──▶ CF AI Gateway ──▶ Workers AI
-                                                       │
-                                                       ├─▶ redis:6379 (rolling 24h counter)
-                                                       │
-                                                       └─▶ ollama:11434 (optional path)
+Cloudflare edge ──tunnel──▶ cloudflared ──▶ api:8000 ──▶ CF AI Gateway ──▶ Workers AI
+                                              │
+                                              ├─▶ redis:6379 (rolling 24h counter)
+                                              │
+                                              └─▶ ollama:11434 (optional path)
 ```
 
 ## Services
@@ -81,27 +83,11 @@ Cloudflare edge (Access) ──tunnel──▶ cloudflared ──▶ api:8000 �
    - URL: `api:8000` (point at `ollama:11434` only if you want raw
      access to Ollama for debugging)
 
-4. **Create a service token.** Zero Trust → Access controls → Service
-   credentials → Create. Name it after the consumer (for example `app`).
-   Save the `Client ID` and `Client Secret` immediately — the secret is
-   shown only once.
-
-5. **Protect the application with the token.** Zero Trust → Access
-   controls → Applications → Add an application → Self-hosted. Set the
-   application domain to the same hostname used for the tunnel route.
-   Attach a policy (created inline here, or pre-created at Zero Trust →
-   Access controls → Policies) with:
-   - Action: **Service Auth**
-   - Include → Service Token → the token created above
-
-   Save. Requests without `CF-Access-Client-Id` and `CF-Access-Client-Secret`
-   headers are now rejected at Cloudflare's edge.
-
-6. **Configure the app.** In the app's hosting environment, add the
-   following as secret environment variables, available only to the
-   server-side runtime (never exposed to the browser):
-   - `CF_ACCESS_CLIENT_ID` — the service token's Client ID
-   - `CF_ACCESS_CLIENT_SECRET` — the service token's Client Secret
+   The hostname is now publicly reachable. There is no Cloudflare
+   Access policy in front of it — `api`'s own rate limits are the
+   only abuse defence on the endpoint. This is a deliberate choice
+   for a frontend-direct architecture where the app can't safely
+   hold a service-token secret (it would leak through the browser).
 
 ## Server deployment
 
@@ -158,30 +144,19 @@ docker compose logs cloudflared
 docker compose logs ollama-pull   # should show successful model pulls
 ```
 
-Verify end-to-end from any machine with the service-token credentials.
-The `api`'s root endpoint returns `Hello!`:
+Verify end-to-end from any machine. The `api`'s root endpoint returns
+`Hello!`:
 
 ```bash
-# Authenticated request — should succeed
-curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
-     -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
-     https://ai.example.com/
+curl https://ai.example.com/
 # expect: "Hello!"
-
-# Unauthenticated request — should be rejected at Cloudflare's edge
-curl -i https://ai.example.com/
-# expect HTTP 403 from Cloudflare
 ```
 
-The negative test confirms Access is actually enforcing — without it, you
-might be looking at a bypass policy or a misconfigured application.
-
-Exercise the `/bio/` endpoint to confirm Ollama Cloud auth is wired up:
+Exercise the `/bio/` endpoint to confirm the upstream LLM auth is
+wired up:
 
 ```bash
 curl -X POST https://ai.example.com/bio/ \
-  -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
-  -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
   -H "Content-Type: text/plain" \
   --data "Born 1985 in Paris. Studied physics at MIT 2003-2007. Worked at Google 2008-2015. Founded a startup in 2016, ongoing."
 # expect a JSON object with {"periods": [...]}
@@ -304,7 +279,7 @@ recovering from a corrupted volume; not needed for routine restarts.
 - **Changing pre-pulled models.** Edit the `command:` of `ollama-pull` in
   `compose.yaml`, then `docker compose up -d ollama-pull`. The
   service runs once and exits.
-- **Debugging the tunnel.** Switch the Cloudflare Published Application
-  route URL to `testserver:8080`; a request from the app (or curl with the
-  service-token headers) should return `Hello`. Switch back to
-  `ollama:11434` once verified.
+- **Debugging the tunnel.** `api`'s `GET /` endpoint returns `Hello!`
+  and doesn't touch Redis or the LLM, so it doubles as a tunnel /
+  cloudflared smoke test on its own — no separate test service is
+  needed.
