@@ -40,7 +40,6 @@ class LifePeriod(BaseModel):
     label: str
     start: str = Field(description="ISO date YYYY-MM-DD")
     end: str = Field(description="ISO date YYYY-MM-DD")
-    color: str | None = Field(default=None, description="Tailwind bg class, e.g. bg-rose-400")
 
 
 class BioResponse(BaseModel):
@@ -77,7 +76,6 @@ Top-level fields:
 Each period:
 - label: a single word, a noun — usually a company, university, or a significant life period (e.g., "Google", "MIT", "Childhood", "Marriage").
 - start, end: ISO date YYYY-MM-DD. If only the year is known, use YYYY-01-01 for start and YYYY-12-31 for end. For an open-ended current period, use the today's date given above for end.
-- color: optional Tailwind CSS background class such as "bg-rose-400", "bg-sky-500", "bg-emerald-400", "bg-amber-400", "bg-violet-400". Pick distinct colors per period.
 
 Output format — strict:
 - Return only the raw JSON value. No prose, no commentary, no explanation, no preamble, no closing remarks.
