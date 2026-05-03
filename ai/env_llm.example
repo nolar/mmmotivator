@@ -44,3 +44,10 @@ MODEL=workers-ai/@cf/qwen/qwen3-30b-a3b-fp8
 #   reaching Redis.
 MAX_REQUESTS_GLOBALLY_PER_DAY=100
 MAX_REQUESTS_PER_USER_PER_DAY=50
+
+# Comma-separated list of browser origins allowed to call the api.
+# CORSMiddleware sets Access-Control-Allow-Origin only for these.
+# Empty (default) blocks all browser callers — non-browser callers
+# (curl, server-to-server) are unaffected since they don't send Origin.
+# Include the production frontend plus any dev hosts you call from.
+ALLOWED_ORIGINS=https://mmmotivator.com,http://localhost:5173

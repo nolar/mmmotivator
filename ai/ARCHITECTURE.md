@@ -172,6 +172,12 @@ of whichever directory `docker compose` is invoked from).
   - `MAX_REQUESTS_PER_USER_PER_DAY` — per-caller cap across the same
     window (default `50`). The caller identifier is hashed before
     Redis sees it.
+  - `ALLOWED_ORIGINS` — comma-separated browser origins allowed by
+    `CORSMiddleware`. Empty default blocks all browsers; non-browser
+    callers (curl, server-to-server) are unaffected since they don't
+    send `Origin`. This effectively doubles as the Origin allow-list
+    that prevents another site from piggybacking on a visitor's
+    per-IP quota.
 
   Treated as deployment artefacts like the LLM credentials so they
   can be tuned per environment.

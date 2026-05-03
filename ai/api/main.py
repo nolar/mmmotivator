@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from typing import Any, cast
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 from redis import asyncio as redis_async
@@ -18,6 +19,7 @@ MODEL = os.environ.get("MODEL", "workers-ai/@cf/qwen/qwen3-30b-a3b-fp8")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379")
 MAX_REQUESTS_GLOBALLY_PER_DAY = int(os.environ.get("MAX_REQUESTS_GLOBALLY_PER_DAY", "100"))
 MAX_REQUESTS_PER_USER_PER_DAY = int(os.environ.get("MAX_REQUESTS_PER_USER_PER_DAY", "50"))
+ALLOWED_ORIGINS = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 
 MAX_INPUT_CHARS = 1024
 MAX_OUTPUT_TOKENS = 2000
@@ -165,6 +167,18 @@ async def _check_and_count_quota(redis_client: redis_async.Redis, user_key: str)
 
 
 app = FastAPI(title="mmmai-api", lifespan=lifespan)
+
+# Browser callers (the frontend) need CORS. The api is publicly callable
+# but we still restrict by origin so a malicious site can't piggyback on
+# a visitor's per-IP quota. Non-browser callers (curl, server-to-server)
+# don't send Origin and aren't affected.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+    allow_credentials=False,
+)
 
 
 @app.get("/")

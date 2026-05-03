@@ -263,6 +263,13 @@ recovering from a corrupted volume; not needed for routine restarts.
 - **Adjusting the caps.** Edit `MAX_REQUESTS_GLOBALLY_PER_DAY` and/or
   `MAX_REQUESTS_PER_USER_PER_DAY` in `env_llm` on the server, then
   `docker compose up -d api`.
+- **CORS / browser callers.** The api is called from the frontend
+  directly. `ALLOWED_ORIGINS` in `env_llm` is a comma-separated list
+  of origins the browser may call from (e.g.
+  `https://mmmotivator.com,http://localhost:5173`). Non-listed origins
+  get blocked by the browser at the preflight step. Empty value blocks
+  all browser callers; non-browser callers (curl, server-to-server)
+  are unaffected since they don't send `Origin`.
 - **Inspecting the bucket keys.**
   ```bash
   # Global keys
