@@ -10,3 +10,20 @@ dependencies = [
     "pydantic",
     "redis",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "fakeredis",
+    "mypy",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
+
+[tool.mypy]
+strict = true
+files = ["main.py"]
+mypy_path = "."

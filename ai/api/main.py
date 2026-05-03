@@ -3,7 +3,9 @@ import json
 import logging
 import os
 import time
+from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
+from typing import Any, cast
 
 from fastapi import FastAPI, HTTPException, Request
 from openai import AsyncOpenAI
@@ -72,11 +74,14 @@ client = AsyncOpenAI()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    redis_client = redis_async.from_url(REDIS_URL, decode_responses=True)
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    redis_client: redis_async.Redis = redis_async.from_url(REDIS_URL, decode_responses=True)
     app.state.redis = redis_client
     try:
-        await redis_client.ping()
+        # redis-py shares stubs between sync and async clients, so
+        # ping() is typed as Awaitable[bool] | bool. On the async
+        # client only the awaitable branch is reachable at runtime.
+        await cast(Awaitable[Any], redis_client.ping())
     except Exception as exc:  # noqa: BLE001
         logger.warning(f"Redis unreachable at {REDIS_URL}: {exc!r}")
     yield
@@ -108,7 +113,7 @@ def _hash_for_redis(value: str) -> str:
     return hashlib.blake2b(value.encode("utf-8"), digest_size=4).hexdigest()
 
 
-async def _check_and_count_quota(redis_client, user_key: str) -> None:
+async def _check_and_count_quota(redis_client: redis_async.Redis, user_key: str) -> None:
     """Increment global + per-user counters, reject over either rolling cap.
 
     Both caps use the same bucket math: the bucket id is the unix
